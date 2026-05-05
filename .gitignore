@@ -82,6 +82,15 @@ Temporary Items
 # Fleet
 .fleet/
 
+# Worktrees / Claude sessions
+.claude/
+
+# Local venv aliases
+venv/
+
+# Large source recordings (pre-GIF)
+docs/assets/_source_recording.mov
+
 # IDE
 .idea/
 .vscode/
