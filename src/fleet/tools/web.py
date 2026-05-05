@@ -5,9 +5,14 @@ import json
 from html.parser import HTMLParser
 
 import httpx
-from duckduckgo_search import DDGS
 
 from fleet.tools.base import tool
+
+try:
+    from duckduckgo_search import DDGS
+    _SEARCH_AVAILABLE = True
+except ImportError:
+    _SEARCH_AVAILABLE = False
 
 
 class _TextExtractor(HTMLParser):
@@ -43,8 +48,14 @@ def _strip_html(raw: str) -> str:
 @tool
 async def web_search(query: str, max_results: int = 5) -> str:
     """Search the web using DuckDuckGo and return JSON results."""
+    if not _SEARCH_AVAILABLE:
+        raise RuntimeError(
+            "web_search requires the 'search' extra. "
+            "Install with: pip install 'bottensor-fleet[search]'"
+        )
+
     def _sync_search() -> list[dict]:
-        with DDGS() as ddgs:
+        with DDGS() as ddgs:  # type: ignore[name-defined]
             return list(ddgs.text(query, max_results=max_results))
 
     results = await asyncio.to_thread(_sync_search)

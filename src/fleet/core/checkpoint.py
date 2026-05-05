@@ -92,6 +92,13 @@ class SQLiteCheckpoint:
 
 class RedisCheckpoint:
     def __init__(self, url: str | None = None) -> None:
+        try:
+            import redis.asyncio  # noqa: F401
+        except ImportError:
+            raise RuntimeError(
+                "RedisCheckpoint requires the 'redis' extra. "
+                "Install with: pip install 'bottensor-fleet[redis]'"
+            ) from None
         self.url = url or os.environ.get("FLEET_REDIS_URL", "redis://localhost:6379")
 
     async def save(self, run_id: str, state: GraphState) -> None:
