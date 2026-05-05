@@ -20,15 +20,41 @@ class LLMProtocol(Protocol):
 
 class Agent:
     """ReAct agent: repeatedly calls the LLM and dispatches tool calls until
-    the model returns a plain text response or *max_iters* is reached."""
+    the model returns a plain text response or *max_iters* is reached.
+
+    Two construction styles are supported:
+
+    Low-level (pass an LLM object directly):
+        Agent(llm, tools=["web_search"], max_iters=10)
+
+    High-level (pass model string, FleetLLM is constructed automatically):
+        Agent(name="researcher", model="anthropic/claude-sonnet-4-6",
+              goal="...", tools=["web_search"])
+    """
 
     def __init__(
         self,
-        llm: LLMProtocol,
+        llm: LLMProtocol | None = None,
         tools: list[str] | None = None,
         max_iters: int = 10,
+        *,
+        name: str = "agent",
+        goal: str = "",
+        model: str = "",
     ) -> None:
-        self.llm = llm
+        if llm is None:
+            if not model:
+                raise ValueError("Provide either an llm object or a model string.")
+            from fleet.providers.client import FleetLLM
+            if "/" in model:
+                backend_str, model_name = model.split("/", 1)
+            else:
+                backend_str, model_name = model, model
+            llm = FleetLLM(backend_str, model_name)
+
+        self.name = name
+        self.goal = goal
+        self.llm: LLMProtocol = llm
         self.tools: list[str] = tools or []
         self.max_iters = max_iters
 
