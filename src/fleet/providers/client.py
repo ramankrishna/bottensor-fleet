@@ -5,7 +5,7 @@ from typing import Any
 import polyrt
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from fleet.core.messages import AgentMessage, ToolCall, ToolResult
+from fleet.core.messages import AgentMessage, ToolCall
 
 
 class FleetLLM:

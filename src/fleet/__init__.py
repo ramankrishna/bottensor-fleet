@@ -16,22 +16,34 @@ from fleet.core import (
     merge_metadata,
     set_scratchpad,
 )
+from fleet.agents import Agent, Planner
+from fleet.tools import tool
+from fleet.skills import skill
 
 __all__ = [
-    "AgentMessage",
-    "ToolCall",
-    "ToolResult",
-    "GraphState",
-    "append_message",
-    "set_scratchpad",
-    "merge_metadata",
+    # Core graph
     "Graph",
     "CompiledGraph",
     "Node",
     "Edge",
     "Scheduler",
     "EventBus",
+    # State
+    "GraphState",
+    "AgentMessage",
+    "ToolCall",
+    "ToolResult",
+    "append_message",
+    "set_scratchpad",
+    "merge_metadata",
+    # Checkpoints
     "CheckpointBackend",
     "SQLiteCheckpoint",
     "RedisCheckpoint",
+    # Agents
+    "Agent",
+    "Planner",
+    # Decorators
+    "tool",
+    "skill",
 ]
