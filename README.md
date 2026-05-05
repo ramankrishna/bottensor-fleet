@@ -4,7 +4,9 @@
 
 [![PyPI](https://img.shields.io/pypi/v/bottensor-fleet)](https://pypi.org/project/bottensor-fleet/)
 [![Python](https://img.shields.io/pypi/pyversions/bottensor-fleet)](https://pypi.org/project/bottensor-fleet/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+
+> **v0.1.1** — public release | [PyPI](https://pypi.org/project/bottensor-fleet/) | Apache-2.0
 
 ---
 
@@ -17,41 +19,63 @@
 ## Install
 
 ```bash
+# Recommended — includes web_search and web_fetch tools
+pip install 'bottensor-fleet[search]'
+
+# Minimal core (no web tools)
 pip install bottensor-fleet
+
+# Everything (web tools + Redis checkpoint)
+pip install 'bottensor-fleet[all]'
 ```
+
+### Extras
+
+| Extra | Adds | Install |
+|---|---|---|
+| `[search]` | `web_search`, `web_fetch` tools (DuckDuckGo) | `pip install 'bottensor-fleet[search]'` |
+| `[redis]` | `RedisCheckpoint` backend | `pip install 'bottensor-fleet[redis]'` |
+| `[all]` | Both of the above | `pip install 'bottensor-fleet[all]'` |
 
 ---
 
 ## 30-second quickstart
 
-```python
-from fleet import Graph, Agent
+```bash
+pip install 'bottensor-fleet[search]'
+fleet new my_agent
+```
 
-researcher = Agent(
-    name="researcher",
-    goal="Answer the user's question with citations.",
-    model="anthropic/claude-sonnet-4-6",
-    tools=["web_search", "web_fetch"],
+That generates a ready-to-run `my_agent.py`:
+
+```python
+from fleet import Agent, Graph
+from fleet.core.state import GraphState
+import asyncio
+
+agent = Agent(
+    name="agent",
+    goal="Complete the user goal.",
+    model="anthropic/claude-sonnet-4-6",  # or openai/gpt-4o, ollama/llama3, …
+    tools=["web_search"],
 )
 
-g = (
-    Graph("solo")
-    .add_node("researcher", researcher.step)
-    .set_entry("researcher")
-    .set_exit("researcher")
+graph = (
+    Graph("my_agent")
+    .add_node("agent", agent.step)
+    .set_entry("agent")
+    .set_exit("agent")
     .compile()
 )
 
-import asyncio
-from fleet.core.state import GraphState
-
-state = GraphState(goal="What's new in AI safety research this week?")
-final = asyncio.run(g.run(state))
-print(final.messages[-1].content)
+if __name__ == "__main__":
+    state = GraphState(goal="What's new in AI safety research this week?")
+    final = asyncio.run(graph.run(state))
+    print(final.messages[-1].content)
 ```
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-… python examples/solo_agent.py
+ANTHROPIC_API_KEY=sk-ant-… python my_agent.py
 ```
 
 ---
@@ -62,7 +86,7 @@ ANTHROPIC_API_KEY=sk-ant-… python examples/solo_agent.py
 fleet ui
 ```
 
-Opens `http://localhost:5173`. Live graph visualization, agent log, and run
+Opens `http://localhost:8765`. Live graph visualization, agent log, and run
 controls — all wired to the local WebSocket server.
 
 ![bottensor-fleet UI screenshot](docs/ui-screenshot.png)
@@ -106,14 +130,12 @@ Bring your own agents, or use the built-in `Agent` class for a full ReAct loop.
 
 ## Provider support
 
-| Provider | Model prefix | Key env var |
+| Provider | Model string | Key env var |
 |---|---|---|
-| Anthropic | `anthropic/` | `ANTHROPIC_API_KEY` |
-| OpenAI | `openai/` | `OPENAI_API_KEY` |
-| Google Gemini | `google/` | `GEMINI_API_KEY` |
-| Groq | `groq/` | `GROQ_API_KEY` |
-| Mistral | `mistral/` | `MISTRAL_API_KEY` |
-| Ollama (local) | `ollama/` | _(none needed)_ |
+| Anthropic | `anthropic/claude-sonnet-4-6` | `ANTHROPIC_API_KEY` |
+| OpenAI | `openai/gpt-4o` | `OPENAI_API_KEY` |
+| Ollama (local) | `ollama/llama3` | _(none needed)_ |
+| MLX (Apple Silicon) | `mlx/<model>` | _(none needed)_ |
 
 Backends are powered by [polyrt](https://github.com/bottensor/polyrt).
 Mix providers freely — each `Agent` picks its own `model`.
@@ -153,7 +175,7 @@ g = (
     .add_node("reviewer", review_step)
     .add_node("fixer",    fix_step)
     .add_edge("reviewer", "fixer",    cond=_needs_fix)
-    .add_edge("fixer",    "reviewer")  # loop
+    .add_edge("fixer",    "reviewer")  # loop back
     .set_entry("reviewer")
     .set_exit("reviewer")
     .compile()
@@ -178,14 +200,14 @@ g = (
 
 ## Built-in tools
 
-| Tool | Description |
-|---|---|
-| `web_search` | DuckDuckGo text search |
-| `web_fetch` | Fetch a URL, return plain text |
-| `python_exec` | Execute Python in a subprocess |
-| `read_file` | Read from `FLEET_WORKSPACE` |
-| `write_file` | Write to `FLEET_WORKSPACE` |
-| `list_files` | List files under `FLEET_WORKSPACE` |
+| Tool | Extra needed | Description |
+|---|---|---|
+| `web_search` | `[search]` | DuckDuckGo text search, returns JSON |
+| `web_fetch` | `[search]` | Fetch a URL, return plain text |
+| `python_exec` | _(core)_ | Execute Python in a subprocess ⚠️ |
+| `read_file` | _(core)_ | Read from `FLEET_WORKSPACE` |
+| `write_file` | _(core)_ | Write to `FLEET_WORKSPACE` |
+| `list_files` | _(core)_ | List files under `FLEET_WORKSPACE` |
 
 Custom tools: decorate any `async def` with `@tool`.
 
@@ -194,20 +216,21 @@ Custom tools: decorate any `async def` with `@tool`.
 ## CLI
 
 ```
-fleet new <name>          scaffold a new graph project
-fleet run <module> <goal> run a graph from the command line
-fleet ui                  start the live dashboard
-fleet add-agent <name>    scaffold an agent module
-fleet ls                  list all recorded runs
-fleet replay <run-id>     replay a finished run's events
+fleet --version               show installed version
+fleet new <name>              scaffold a new graph (runnable Agent + Graph)
+fleet run <module> --goal … run a graph from the command line
+fleet ui                      start the live dashboard (http://localhost:8765)
+fleet add-agent <file> …     append an Agent node to an existing graph
+fleet ls                      list runs (run_id · saved_at · goal)
+fleet replay <run-id>         re-run from a saved checkpoint
 ```
 
 ---
 
 ## ⚠️ Security note
 
-`python_exec` runs code in an **unsandboxed subprocess** in v0.1.
-Only use it with trusted agents and goals.  A Docker sandbox is on the v0.2
+`python_exec` runs code in an **unsandboxed subprocess** in v0.1.x.
+Only use it with trusted agents and goals. A Docker sandbox is on the v0.2
 roadmap.
 
 ---
@@ -216,7 +239,7 @@ roadmap.
 
 | Version | Focus |
 |---|---|
-| **v0.1** (now) | Core runtime, ReAct agents, FastAPI server, React UI |
+| **v0.1.1** (now) | Core runtime, ReAct agents, FastAPI server, React UI, optional extras |
 | **v0.2** | Docker sandbox for `python_exec`, streaming token output |
 | **v0.3** | Distributed scheduler (Redis task queue), multi-process workers |
 | **v0.4** | Persistent vector memory (ChromaDB / pgvector), skill marketplace |
@@ -225,7 +248,7 @@ roadmap.
 
 ## License
 
-MIT © 2026 Bottensor.  See [LICENSE](LICENSE).
+Apache-2.0 © 2026 Bottensor. See [LICENSE](LICENSE).
 
 Built with [polyrt](https://github.com/bottensor/polyrt) ·
 [ReactFlow](https://reactflow.dev) · [Zustand](https://zustand-demo.pmnd.rs) ·
