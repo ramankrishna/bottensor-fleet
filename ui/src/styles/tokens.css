@@ -1,0 +1,49 @@
+/* ── Google Fonts ──────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap');
+
+/* ── Bottensor design tokens ───────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --bg-base:      #0b0d12;
+  --bg-elevated:  #161b26;
+
+  /* Accents */
+  --accent-teal:  #00dbb8;
+  --accent-gold:  #f5c842;
+
+  /* Text */
+  --text-primary: #e8ecf1;
+  --text-muted:   #8a94a6;
+
+  /* Borders */
+  --border:       #232936;
+
+  /* Typography */
+  --font-display: "Outfit", sans-serif;
+  --font-serif:   "Instrument Serif", serif;
+  --font-mono:    "DM Mono", monospace;
+
+  /* Spacing / radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+}
+
+/* ── Tailwind v4 @theme block — exposes tokens as utility classes ───────── */
+@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-bg-base:      #0b0d12;
+  --color-bg-elevated:  #161b26;
+  --color-accent-teal:  #00dbb8;
+  --color-accent-gold:  #f5c842;
+  --color-text-primary: #e8ecf1;
+  --color-text-muted:   #8a94a6;
+  --color-border:       #232936;
+
+  /* Fonts */
+  --font-display: "Outfit", sans-serif;
+  --font-serif:   "Instrument Serif", serif;
+  --font-mono:    "DM Mono", monospace;
+}
