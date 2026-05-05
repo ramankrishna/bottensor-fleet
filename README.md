@@ -1,84 +1,48 @@
 # bottensor-fleet
 
-> **Graph-native multi-agent orchestration for Python. BYO-key. Local-first. Ships with a UI.**
+> Graph-native multi-agent fleet for Python. BYO-key. Local-first. Ships with a UI.
 
-[![PyPI](https://img.shields.io/pypi/v/bottensor-fleet)](https://pypi.org/project/bottensor-fleet/)
-[![Python](https://img.shields.io/pypi/pyversions/bottensor-fleet)](https://pypi.org/project/bottensor-fleet/)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/bottensor-fleet.svg)](https://pypi.org/project/bottensor-fleet/)
+[![Python](https://img.shields.io/pypi/pyversions/bottensor-fleet.svg)](https://pypi.org/project/bottensor-fleet/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-> **v0.1.1** — public release | [PyPI](https://pypi.org/project/bottensor-fleet/) | Apache-2.0
+<!-- demo.gif placeholder — will be added after capture run -->
 
----
+## Why
 
-## Demo
-
-![bottensor-fleet demo](docs/demo.gif)
-
----
+Most multi-agent frameworks are heavy and locked to one ecosystem. LangGraph is tied to LangChain. CrewAI is opinionated about roles. AutoGen is conversation-first. `bottensor-fleet` is a small, graph-native runtime that runs anywhere Python runs, lets you bring your own provider key, and ships with a real UI in the wheel.
 
 ## Install
 
 ```bash
-# Recommended — includes web_search and web_fetch tools
 pip install 'bottensor-fleet[search]'
-
-# Minimal core (no web tools)
-pip install bottensor-fleet
-
-# Everything (web tools + Redis checkpoint)
-pip install 'bottensor-fleet[all]'
+export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-### Extras
+Extras: `[search]` adds web tools, `[redis]` adds Redis checkpointing, `[all]` gets everything.
 
-| Extra | Adds | Install |
-|---|---|---|
-| `[search]` | `web_search`, `web_fetch` tools (DuckDuckGo) | `pip install 'bottensor-fleet[search]'` |
-| `[redis]` | `RedisCheckpoint` backend | `pip install 'bottensor-fleet[redis]'` |
-| `[all]` | Both of the above | `pip install 'bottensor-fleet[all]'` |
-
----
-
-## 30-second quickstart
-
-```bash
-pip install 'bottensor-fleet[search]'
-fleet new my_agent
-```
-
-That generates a ready-to-run `my_agent.py`:
+## 30-second example
 
 ```python
+import asyncio
 from fleet import Agent, Graph
 from fleet.core.state import GraphState
-import asyncio
+from fleet.providers.client import FleetLLM
 
-agent = Agent(
-    name="agent",
-    goal="Complete the user goal.",
-    model="anthropic/claude-sonnet-4-6",  # or openai/gpt-4o, ollama/llama3, …
-    tools=["web_search"],
-)
+llm = FleetLLM("claude", "claude-sonnet-4-6")
+researcher = Agent(name="researcher", llm=llm, tools=["web_search", "web_fetch"])
 
 graph = (
-    Graph("my_agent")
-    .add_node("agent", agent.step)
-    .set_entry("agent")
-    .set_exit("agent")
+    Graph("solo")
+    .add_node("researcher", researcher.step)
+    .set_entry("researcher")
+    .set_exit("researcher")
     .compile()
 )
 
-if __name__ == "__main__":
-    state = GraphState(goal="What's new in AI safety research this week?")
-    final = asyncio.run(graph.run(state))
-    print(final.messages[-1].content)
+state = asyncio.run(graph.run(GraphState(goal="What is ReasoningBank?")))
+print(state.messages[-1].content)
 ```
-
-```bash
-ANTHROPIC_API_KEY=sk-ant-… python my_agent.py
-```
-
----
 
 ## UI
 
@@ -86,170 +50,51 @@ ANTHROPIC_API_KEY=sk-ant-… python my_agent.py
 fleet ui
 ```
 
-Opens `http://localhost:8765`. Live graph visualization, agent log, and run
-controls — all wired to the local WebSocket server.
-
-![bottensor-fleet UI screenshot](docs/ui-screenshot.png)
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Graph (fluent builder)                                 │
-│    .add_node()  .add_edge(cond=...)  .compile()         │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│  Scheduler                                              │
-│    BFS walk · asyncio.gather fan-out · state merge      │
-│    EventBus pub/sub · per-step checkpoint               │
-└──────┬───────────────────────────────┬──────────────────┘
-       │                               │
-       ▼                               ▼
-┌────────────┐               ┌─────────────────────┐
-│ Checkpoint │               │  FastAPI + WS       │
-│ SQLite /   │               │  /api/runs CRUD     │
-│ Redis      │               │  /ws/runs/{id}      │
-└────────────┘               └──────────┬──────────┘
-                                        │
-                                        ▼
-                             ┌─────────────────────┐
-                             │  React UI           │
-                             │  Zustand · ReactFlow│
-                             │  Tailwind v4        │
-                             └─────────────────────┘
-```
-
-Each node in the graph is a plain `async def (GraphState) -> GraphState`.
-Bring your own agents, or use the built-in `Agent` class for a full ReAct loop.
-
----
-
-## Provider support
-
-| Provider | Model string | Key env var |
-|---|---|---|
-| Anthropic | `anthropic/claude-sonnet-4-6` | `ANTHROPIC_API_KEY` |
-| OpenAI | `openai/gpt-4o` | `OPENAI_API_KEY` |
-| Ollama (local) | `ollama/llama3` | _(none needed)_ |
-| MLX (Apple Silicon) | `mlx/<model>` | _(none needed)_ |
-
-Backends are powered by [polyrt](https://github.com/bottensor/polyrt).
-Mix providers freely — each `Agent` picks its own `model`.
-
----
-
-## Multi-agent patterns
-
-### Parallel fan-out
-
-```python
-g = (
-    Graph("team")
-    .add_node("planner",  planner.step)
-    .add_node("worker_a", worker_a.step)
-    .add_node("worker_b", worker_b.step)
-    .add_node("writer",   writer.step)
-    .add_edge("planner",  "worker_a")
-    .add_edge("planner",  "worker_b")   # fan-out
-    .add_edge("worker_a", "writer")
-    .add_edge("worker_b", "writer")     # merge
-    .set_entry("planner")
-    .set_exit("writer")
-    .compile()
-)
-```
-
-`worker_a` and `worker_b` execute concurrently via `asyncio.gather`.
-
-### Conditional cycles
-
-```python
-def _needs_fix(s): return not s.scratchpad.get("approved")
-
-g = (
-    Graph("review")
-    .add_node("reviewer", review_step)
-    .add_node("fixer",    fix_step)
-    .add_edge("reviewer", "fixer",    cond=_needs_fix)
-    .add_edge("fixer",    "reviewer")  # loop back
-    .set_entry("reviewer")
-    .set_exit("reviewer")
-    .compile()
-)
-```
-
----
-
-## How it compares
-
-| Feature | **bottensor-fleet** | LangGraph | CrewAI | AutoGen |
-|---|---|---|---|---|
-| Graph-native | ✅ | ✅ | ❌ role-based | ❌ conversation-first |
-| No framework lock-in | ✅ plain Python | ⚠️ LangChain | ⚠️ CrewAI patterns | ⚠️ AutoGen patterns |
-| Multi-provider | ✅ polyrt | ✅ | ✅ | ✅ |
-| Built-in UI | ✅ React dashboard | ❌ | ❌ | ❌ |
-| Checkpointing | ✅ SQLite / Redis | ✅ | ❌ | ❌ |
-| Parallel fan-out | ✅ asyncio.gather | ✅ | ❌ | ⚠️ partial |
-| Conditional cycles | ✅ edge `cond=` | ✅ | ❌ | ❌ |
-
----
-
-## Built-in tools
-
-| Tool | Extra needed | Description |
-|---|---|---|
-| `web_search` | `[search]` | DuckDuckGo text search, returns JSON |
-| `web_fetch` | `[search]` | Fetch a URL, return plain text |
-| `python_exec` | _(core)_ | Execute Python in a subprocess ⚠️ |
-| `read_file` | _(core)_ | Read from `FLEET_WORKSPACE` |
-| `write_file` | _(core)_ | Write to `FLEET_WORKSPACE` |
-| `list_files` | _(core)_ | List files under `FLEET_WORKSPACE` |
-
-Custom tools: decorate any `async def` with `@tool`.
-
----
+Opens a local dashboard at `http://localhost:8765` with a live DAG view, per-agent logs, token spend, and run history.
 
 ## CLI
 
-```
-fleet --version               show installed version
-fleet new <name>              scaffold a new graph (runnable Agent + Graph)
-fleet run <module> --goal … run a graph from the command line
-fleet ui                      start the live dashboard (http://localhost:8765)
-fleet add-agent <file> …     append an Agent node to an existing graph
-fleet ls                      list runs (run_id · saved_at · goal)
-fleet replay <run-id>         re-run from a saved checkpoint
-```
+| Command | What it does |
+|---|---|
+| `fleet new <name>` | Scaffold a new graph |
+| `fleet run <graph.py>` | Run a graph from a file |
+| `fleet ui` | Launch the local dashboard |
+| `fleet add-agent` | Append an agent to an existing graph |
+| `fleet ls` | List past runs |
+| `fleet --version` | Print version |
 
----
+## Design
 
-## ⚠️ Security note
+- **Graph-native:** DAGs with conditional edges and bounded cycles, executed async with `asyncio.gather` for parallel fan-out.
+- **BYO-key:** Provider abstraction via [polyrt](https://pypi.org/project/polyrt/). Anthropic and OpenAI in the default install; MLX, Ollama, and others via polyrt extras.
+- **Checkpointed:** Every run persists to SQLite (default) or Redis (opt-in via `[redis]` extra).
+- **Tools and skills:** `@tool` decorator auto-derives JSON schemas from type hints. `@skill` for higher-level capabilities. Web search and fetch built in via the `[search]` extra.
+- **UI in the wheel:** No separate Node install for users. The React + Vite frontend is bundled into the published wheel.
 
-`python_exec` runs code in an **unsandboxed subprocess** in v0.1.x.
-Only use it with trusted agents and goals. A Docker sandbox is on the v0.2
-roadmap.
+## Comparison
 
----
+| | bottensor-fleet | LangGraph | CrewAI | AutoGen |
+|---|---|---|---|---|
+| Graph topology | ✅ DAG + cycles | ✅ | ❌ role-based | ❌ conversation |
+| Provider-agnostic | ✅ via polyrt | ⚠️ via LangChain | ⚠️ | ⚠️ |
+| Ships with UI | ✅ | ❌ | ❌ | ⚠️ Studio (separate) |
+| Pip-install size | ~150 KB wheel | heavy | medium | heavy |
+| LangChain dependency | ❌ | ✅ required | ❌ | ❌ |
 
 ## Roadmap
 
-| Version | Focus |
-|---|---|
-| **v0.1.1** (now) | Core runtime, ReAct agents, FastAPI server, React UI, optional extras |
-| **v0.2** | Docker sandbox for `python_exec`, streaming token output |
-| **v0.3** | Distributed scheduler (Redis task queue), multi-process workers |
-| **v0.4** | Persistent vector memory (ChromaDB / pgvector), skill marketplace |
+- **v0.2** — ReasoningBank ([Ouyang et al., ICLR 2026](https://arxiv.org/abs/2509.25140)): self-evolving agents that learn from successful and failed trajectories. Memory-aware test-time scaling (MaTTS).
+- **v0.3** — MLX embedder, sequential MaTTS, distributed scheduler.
+- **v0.4** — Vector memory backend, cloud deploy templates.
 
----
+## Security
+
+The `python_exec` tool is unsandboxed in v0.1.x. Do not run untrusted graphs. A Docker sandbox lands in v0.2.
 
 ## License
 
-Apache-2.0 © 2026 Bottensor. See [LICENSE](LICENSE).
+Apache-2.0. © 2026 Rama Krishna Bachu.
 
-Built with [polyrt](https://github.com/bottensor/polyrt) ·
-[ReactFlow](https://reactflow.dev) · [Zustand](https://zustand-demo.pmnd.rs) ·
-[Tailwind CSS](https://tailwindcss.com) · [FastAPI](https://fastapi.tiangolo.com)
+## Acknowledgements
+
+Built on [polyrt](https://pypi.org/project/polyrt/). ReasoningBank design (v0.2) follows Ouyang et al., *ReasoningBank: Scaling Agent Self-Evolving with Reasoning Memory*, ICLR 2026.
