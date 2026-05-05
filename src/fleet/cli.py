@@ -141,7 +141,7 @@ def run(
 
         bus.subscribe(_on_event)
 
-        state = GraphState(goal=goal)
+        state = GraphState(goal=goal, metadata={"graph_module": graph_file})
         console.print(f"[bold]graph[/bold]   {graph_file}")
         console.print(f"[bold]goal[/bold]    {goal}")
         console.print(f"[bold]backend[/bold] {backend}")
@@ -265,6 +265,7 @@ def list_runs() -> None:
 def replay(
     run_id: str = typer.Argument(..., help="Run ID to replay from checkpoint"),
     backend: str = typer.Option("sqlite", "--backend", "-b", help="Checkpoint backend"),
+    graph: str = typer.Option("", "--graph", "-g", help="Override graph module/file (required if checkpoint lacks graph_module)"),
 ) -> None:
     """Re-run a graph starting from a saved checkpoint state."""
     import asyncio
@@ -279,9 +280,12 @@ def replay(
             console.print(f"[red]Run '{run_id}' not found in checkpoint.[/red]")
             raise typer.Exit(1)
 
-        graph_module = state.metadata.get("graph_module")
+        graph_module = graph or state.metadata.get("graph_module")
         if not graph_module:
-            console.print("[yellow]Checkpoint has no graph_module metadata — cannot replay.[/yellow]")
+            console.print(
+                "[yellow]Checkpoint has no graph_module metadata.[/yellow]\n"
+                "Pass the graph with: [bold]--graph <file_or_module>[/bold]"
+            )
             raise typer.Exit(1)
 
         raw = _load_graph_from(graph_module)
