@@ -201,3 +201,34 @@ async def test_node_retry_on_failure(tmp_path):
     await g.compile(backend=_sqlite(tmp_path)).run(state)
 
     assert len(attempts) == 2
+
+
+async def test_terminated_by_exit_node(tmp_path):
+    g = (
+        Graph("exit_meta")
+        .add_node("a", _make_fn("a", []))
+        .set_entry("a")
+        .set_exit("a")
+    )
+    state = GraphState(goal="t")
+    result = await g.compile(backend=_sqlite(tmp_path)).run(state)
+    assert result.metadata.get("terminated_by") == "exit_node"
+
+
+async def test_terminated_by_max_steps(tmp_path):
+    # Cycle that never reaches the exit node
+    async def loop_forever(state: GraphState) -> GraphState:
+        return state
+
+    g = (
+        Graph("cycle")
+        .add_node("loop", loop_forever)
+        .add_node("exit", loop_forever)
+        .add_edge("loop", "loop")                         # always fires
+        .add_edge("loop", "exit", cond=lambda _: False)  # BFS reachable, never fires
+        .set_entry("loop")
+        .set_exit("exit")
+    )
+    state = GraphState(goal="t")
+    result = await g.compile(backend=_sqlite(tmp_path), max_steps=3).run(state)
+    assert result.metadata.get("terminated_by") == "max_steps"

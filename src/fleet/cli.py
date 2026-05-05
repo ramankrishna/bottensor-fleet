@@ -12,6 +12,23 @@ app = typer.Typer(
 )
 console = Console()
 
+
+def _version_callback(value: bool) -> None:
+    if value:
+        from importlib.metadata import version as _pkg_version
+        typer.echo(f"bottensor-fleet {_pkg_version('bottensor-fleet')}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: bool = typer.Option(
+        None, "--version", callback=_version_callback, is_eager=True,
+        help="Show version and exit.",
+    ),
+) -> None:
+    """Graph-native multi-agent fleet."""
+
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
@@ -62,33 +79,45 @@ def _load_graph_from(path_or_module: str):  # type: ignore[return]
 # ---------------------------------------------------------------------------
 
 _GRAPH_TEMPLATE = '''\
-"""Graph: {name}
-Scaffolded by `fleet new {name}`.
-"""
+"""Graph: {name} — scaffolded by `fleet new {name}`."""
 from __future__ import annotations
 
-from fleet.core.graph import Graph
+import asyncio
+
+from fleet import Agent, Graph
 from fleet.core.state import GraphState
 
+# ---------------------------------------------------------------------------
+# Agents
+# ---------------------------------------------------------------------------
 
-async def start_node(state: GraphState) -> GraphState:
-    # TODO: implement
-    return state
+agent = Agent(
+    name="agent",
+    goal="Complete the user goal.",
+    model="anthropic/claude-sonnet-4-6",  # or openai/gpt-4o, ollama/llama3, …
+    tools=["web_search"],                  # remove if no tools needed
+)
 
-
-async def exit_node(state: GraphState) -> GraphState:
-    # TODO: implement
-    return state
-
+# ---------------------------------------------------------------------------
+# Graph
+# ---------------------------------------------------------------------------
 
 graph = (
     Graph("{name}")
-    .add_node("start", start_node)
-    .add_node("exit", exit_node)
-    .add_edge("start", "exit")
-    .set_entry("start")
-    .set_exit("exit")
+    .add_node("agent", agent.step)
+    .set_entry("agent")
+    .set_exit("agent")
+    .compile()
 )
+
+# ---------------------------------------------------------------------------
+# Run directly: python {name}.py
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    state = GraphState(goal="What is the capital of France?")
+    final = asyncio.run(graph.run(state))
+    print(final.messages[-1].content)
 '''
 
 
@@ -243,17 +272,22 @@ def list_runs() -> None:
 
     from fleet.core.checkpoint import SQLiteCheckpoint
 
-    async def _list() -> list[str]:
-        return await SQLiteCheckpoint().list_runs()
+    async def _list() -> list[dict[str, str]]:
+        return await SQLiteCheckpoint().list_runs_rich()
 
-    runs = asyncio.run(_list())
-    if not runs:
+    rows = asyncio.run(_list())
+    if not rows:
         console.print("[dim]No past runs found.[/dim]")
         return
 
-    table = Table("Run ID", show_header=True, header_style="bold")
-    for r in runs:
-        table.add_row(r)
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Run ID", style="cyan", no_wrap=True)
+    table.add_column("Saved at", style="dim", no_wrap=True)
+    table.add_column("Goal")
+    for r in rows:
+        saved = r["saved_at"][:19].replace("T", " ")  # ISO to "YYYY-MM-DD HH:MM:SS"
+        goal = r["goal"][:60] + ("…" if len(r["goal"]) > 60 else "")
+        table.add_row(r["run_id"], saved, goal)
     console.print(table)
 
 

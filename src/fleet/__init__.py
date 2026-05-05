@@ -19,6 +19,7 @@ from fleet.core import (
 from fleet.agents import Agent, Planner
 from fleet.tools import tool
 from fleet.skills import skill
+from fleet.errors import FleetError, ProviderError
 
 __all__ = [
     # Core graph
@@ -46,4 +47,7 @@ __all__ = [
     # Decorators
     "tool",
     "skill",
+    # Errors
+    "FleetError",
+    "ProviderError",
 ]

@@ -207,16 +207,18 @@ async def list_graphs() -> dict[str, Any]:
     return {"graphs": files, "directory": graphs_dir}
 
 
-_KNOWN_PROVIDERS = ["anthropic", "openai", "cohere", "groq", "mistral", "ollama", "together"]
+# TODO: replace with dynamic polyrt registry once entry-points are populated
+_KNOWN_BACKENDS = ["claude", "openai", "mlx", "ollama"]
 
 
 @router.get("/providers")
 async def list_providers() -> dict[str, Any]:
-    """Return supported provider names (polyrt registry + well-known list)."""
+    """Return actually-registered polyrt backend names."""
     try:
         from polyrt import registry as _reg
         _reg._load_entry_points()
         registered = list(_reg._FACTORIES.keys())
     except Exception:
         registered = []
-    return {"providers": sorted(set(_KNOWN_PROVIDERS + registered))}
+    backends = registered if registered else _KNOWN_BACKENDS
+    return {"providers": sorted(set(backends))}

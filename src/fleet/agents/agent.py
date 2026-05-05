@@ -59,6 +59,9 @@ class Agent:
         self.max_iters = max_iters
 
     async def step(self, state: GraphState) -> GraphState:
+        if not state.messages and state.goal:
+            state = append_message(state, AgentMessage(role="user", content=state.goal))
+
         tool_schemas = [to_anthropic(t) for t in self.tools if get_tool(t) is not None]
 
         for _ in range(self.max_iters):

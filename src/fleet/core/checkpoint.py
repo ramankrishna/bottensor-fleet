@@ -66,6 +66,29 @@ class SQLiteCheckpoint:
             rows = await cursor.fetchall()
             return [row[0] for row in rows]
 
+    async def list_runs_rich(self) -> list[dict[str, str]]:
+        """Return run_id, saved_at, and goal for each checkpoint."""
+        import json
+        import aiosqlite
+
+        if not os.path.exists(self.path):
+            return []
+
+        async with aiosqlite.connect(self.path) as db:
+            cursor = await db.execute(
+                "SELECT run_id, saved_at, state_json FROM checkpoints ORDER BY saved_at DESC"
+            )
+            rows = await cursor.fetchall()
+
+        result = []
+        for run_id, saved_at, state_json in rows:
+            try:
+                goal = json.loads(state_json).get("goal", "")
+            except Exception:
+                goal = ""
+            result.append({"run_id": run_id, "saved_at": saved_at, "goal": goal})
+        return result
+
 
 class RedisCheckpoint:
     def __init__(self, url: str | None = None) -> None:

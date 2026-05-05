@@ -191,6 +191,32 @@ async def test_step_accumulates_state_messages():
     assert len(result.messages) == 2  # user + assistant
 
 
+async def test_step_seeds_goal_as_user_message():
+    """When messages is empty and goal is set, goal is prepended as a user message."""
+    llm = _MockLLM([_text("answer")])
+    agent = Agent(llm)
+    state = GraphState(goal="What is 2+2?")
+
+    result = await agent.step(state)
+
+    assert result.messages[0].role == "user"
+    assert result.messages[0].content == "What is 2+2?"
+    assert result.messages[1].role == "assistant"
+
+
+async def test_step_no_seed_when_messages_present():
+    """Goal seeding is skipped when messages already exist."""
+    llm = _MockLLM([_text("answer")])
+    agent = Agent(llm)
+    existing = AgentMessage(role="user", content="existing message")
+    state = GraphState(goal="ignored goal", messages=[existing])
+
+    result = await agent.step(state)
+
+    assert result.messages[0].content == "existing message"
+    assert len(result.messages) == 2
+
+
 # ---------------------------------------------------------------------------
 # ScratchpadMemory
 # ---------------------------------------------------------------------------

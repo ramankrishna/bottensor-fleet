@@ -6,6 +6,7 @@ import polyrt
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from fleet.core.messages import AgentMessage, ToolCall
+from fleet.errors import ProviderError
 
 _BACKEND_ALIASES: dict[str, str] = {
     "anthropic": "claude",
@@ -51,21 +52,34 @@ class FleetLLM:
             call_kwargs["tools"] = tools
 
         response: polyrt.Response | None = None
-        async for attempt in AsyncRetrying(
-            retry=retry_if_exception_type(polyrt.BackendError),
-            wait=wait_exponential(multiplier=1, min=1, max=60),
-            stop=stop_after_attempt(3),
-            reraise=True,
-        ):
-            with attempt:
-                response = await polyrt.agenerate(
-                    self.backend,
-                    model=self.model,
-                    messages=polyrt_msgs,
-                    max_tokens=self._max_tokens,
-                    temperature=self._temperature,
-                    **call_kwargs,
-                )
+        try:
+            async for attempt in AsyncRetrying(
+                retry=retry_if_exception_type(polyrt.BackendError),
+                wait=wait_exponential(multiplier=1, min=1, max=60),
+                stop=stop_after_attempt(3),
+                reraise=True,
+            ):
+                with attempt:
+                    response = await polyrt.agenerate(
+                        self.backend,
+                        model=self.model,
+                        messages=polyrt_msgs,
+                        max_tokens=self._max_tokens,
+                        temperature=self._temperature,
+                        **call_kwargs,
+                    )
+        except polyrt.BackendError as exc:
+            raise ProviderError(
+                f"{self.backend}/{self.model}: {exc}"
+            ) from exc
+        except polyrt.ConfigurationError as exc:
+            raise ProviderError(
+                f"{self.backend} not configured — set the API key env var ({exc})"
+            ) from exc
+        except Exception as exc:
+            raise ProviderError(
+                f"{self.backend}/{self.model} unexpected error: {type(exc).__name__}: {exc}"
+            ) from exc
 
         assert response is not None
         self._last_usage = response.usage

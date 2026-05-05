@@ -93,6 +93,7 @@ class Scheduler:
                 await self.backend.save(run_id, state)
                 await self.event_bus.emit({"type": "node_complete", "node": name, "step": steps})
                 if name == self.graph.exit:
+                    state = merge_metadata(state, {"terminated_by": "exit_node"})
                     break
                 current = set(self._get_next_nodes(name, state))
             else:
@@ -106,8 +107,12 @@ class Scheduler:
                         {"type": "node_complete", "node": name, "step": steps}
                     )
                 if self.graph.exit in node_list:
+                    state = merge_metadata(state, {"terminated_by": "exit_node"})
                     break
                 for name in node_list:
                     current.update(self._get_next_nodes(name, state))
+        else:
+            if steps >= self.graph.max_steps:
+                state = merge_metadata(state, {"terminated_by": "max_steps"})
 
         return state
