@@ -59,10 +59,37 @@ class Agent:
         self.max_iters = max_iters
 
     async def step(self, state: GraphState) -> GraphState:
-        if not state.messages and state.goal:
-            state = append_message(state, AgentMessage(role="user", content=state.goal))
+        # Seed / re-seed so the conversation always ends with a user turn before
+        # we hit the LLM. Three cases:
+        #   1. empty messages: seed with the agent's own goal (preferred) or the graph goal
+        #   2. last message is from a prior assistant: this is a multi-agent handoff,
+        #      prompt the current agent to take over with a fresh user message
+        #   3. otherwise (last was user or tool): leave as-is, already a valid turn
+        prompt: str | None = None
+        if not state.messages:
+            prompt = self.goal or state.goal or None
+        else:
+            last = state.messages[-1]
+            if last.role == "assistant":
+                handoff = f"Now you ({self.name}) take over."
+                if self.goal:
+                    handoff += f" Your role: {self.goal}"
+                if state.goal and state.goal not in (self.goal or ""):
+                    handoff += f"\n\nOverall goal: {state.goal}"
+                prompt = handoff
+        if prompt:
+            state = append_message(state, AgentMessage(role="user", content=prompt))
 
         tool_schemas = [to_anthropic(t) for t in self.tools if get_tool(t) is not None]
+        if self.tools and not tool_schemas:
+            import warnings
+            unknown = [t for t in self.tools if get_tool(t) is None]
+            warnings.warn(
+                f"Agent {self.name!r} requested tools {unknown} but none are registered. "
+                f"Did you forget `import fleet.tools.web` (or another tools module)?",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
         for _ in range(self.max_iters):
             response = await self.llm.complete(

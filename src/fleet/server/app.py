@@ -11,7 +11,12 @@ from .ws import ws_router
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="bottensor-fleet", version="0.1.0")
+    try:
+        from importlib.metadata import version as _pkg_version
+        _version = _pkg_version("bottensor-fleet")
+    except Exception:
+        _version = "0.0.0+local"
+    app = FastAPI(title="bottensor-fleet", version=_version)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173"],
