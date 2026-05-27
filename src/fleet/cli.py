@@ -150,6 +150,8 @@ def run(
 ) -> None:
     """Run a graph to completion, streaming progress to the terminal."""
     import asyncio
+    import os
+    from importlib.metadata import version as _pkg_version
 
     from fleet.core.graph import Graph
     from fleet.core.scheduler import EventBus
@@ -170,7 +172,14 @@ def run(
 
         bus.subscribe(_on_event)
 
-        state = GraphState(goal=goal, metadata={"graph_module": graph_file})
+        state = GraphState(
+            goal=goal,
+            metadata={
+                "graph_module": graph_file,
+                "graph_source": os.path.abspath(graph_file),
+                "fleet_version": _pkg_version("bottensor-fleet"),
+            },
+        )
         console.print(f"[bold]graph[/bold]   {graph_file}")
         console.print(f"[bold]goal[/bold]    {goal}")
         console.print(f"[bold]backend[/bold] {backend}")
@@ -297,49 +306,61 @@ def list_runs() -> None:
 
 @app.command()
 def replay(
-    run_id: str = typer.Argument(..., help="Run ID to replay from checkpoint"),
-    backend: str = typer.Option("sqlite", "--backend", "-b", help="Checkpoint backend"),
-    graph: str = typer.Option("", "--graph", "-g", help="Override graph module/file (required if checkpoint lacks graph_module)"),
+    run_id: str = typer.Argument(..., help="Run ID to replay"),
+    goal: str | None = typer.Option(None, "--goal", help="Override the original goal"),
 ) -> None:
-    """Re-run a graph starting from a saved checkpoint state."""
+    """Re-run a previous graph using its persisted source path."""
     import asyncio
+    import importlib.util
+    from pathlib import Path
 
     from fleet.core.checkpoint import SQLiteCheckpoint
-    from fleet.core.graph import Graph
-    from fleet.core.scheduler import EventBus
+    from fleet.core.state import GraphState
 
     async def _replay() -> None:
-        state = await SQLiteCheckpoint().load(run_id)
+        ckpt = SQLiteCheckpoint()
+        state = await ckpt.load(run_id)
         if state is None:
-            console.print(f"[red]Run '{run_id}' not found in checkpoint.[/red]")
+            typer.echo(f"Run not found: {run_id}", err=True)
             raise typer.Exit(1)
 
-        graph_module = graph or state.metadata.get("graph_module")
-        if not graph_module:
-            console.print(
-                "[yellow]Checkpoint has no graph_module metadata.[/yellow]\n"
-                "Pass the graph with: [bold]--graph <file_or_module>[/bold]"
+        source_path = state.metadata.get("graph_source")
+        if not source_path:
+            typer.echo(
+                f"Run {run_id} has no graph_source metadata (created with an older fleet "
+                "version). Cannot replay.",
+                err=True,
             )
             raise typer.Exit(1)
 
-        raw = _load_graph_from(graph_module)
-        cg = raw.compile(backend=backend) if isinstance(raw, Graph) else raw
+        if not Path(source_path).exists():
+            typer.echo(f"Graph source file no longer exists: {source_path}", err=True)
+            raise typer.Exit(1)
 
-        bus = EventBus()
-        cg._event_bus = bus
+        spec = importlib.util.spec_from_file_location("_replay_module", source_path)
+        if spec is None or spec.loader is None:
+            typer.echo(f"Could not load module from {source_path}", err=True)
+            raise typer.Exit(1)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
 
-        async def _on_event(evt: dict) -> None:
-            node = evt.get("node", "")
-            evt_type = evt.get("type", "?")
-            console.print(f"  [cyan]{evt_type}[/cyan]  {node}")
+        graph = getattr(module, "graph", None)
+        if graph is None:
+            typer.echo(
+                f"Module {source_path} has no top-level `graph` variable. "
+                "Replay requires the convention `graph = (...).compile()`.",
+                err=True,
+            )
+            raise typer.Exit(1)
 
-        bus.subscribe(_on_event)
+        original_goal = state.goal
+        new_state = GraphState(goal=goal or original_goal)
+        new_state.metadata["replayed_from"] = run_id
 
-        console.print(f"[bold]Replaying[/bold] run_id={run_id}  goal={state.goal!r}")
-        console.rule()
-        result = await cg.run(state)
-        console.rule()
-        new_id = result.metadata.get("run_id", "—")
-        console.print(f"[green]✓ done[/green]   new run_id={new_id}")
+        typer.echo(f"Replaying {run_id} (goal: {new_state.goal!r})")
+        final = await graph.run(new_state)
+        typer.echo(f"\nReplay complete. New run_id: {final.metadata.get('run_id')}")
+        if final.messages:
+            typer.echo(f"\nFinal output:\n{final.messages[-1].content}")
 
     asyncio.run(_replay())
