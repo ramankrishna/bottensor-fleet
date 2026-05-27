@@ -134,6 +134,11 @@ def run(
     graph_file: str = typer.Argument(..., help="Graph file path or dotted module"),
     goal: str = typer.Option(..., "--goal", "-g", help="Top-level objective"),
     backend: str = typer.Option("sqlite", "--backend", "-b", help="Checkpoint backend"),
+    matts: int | None = typer.Option(
+        None,
+        "--matts",
+        help="Run k parallel rollouts and contrast-distill memories (requires memory_bank)",
+    ),
 ) -> None:
     """Run a graph to completion, streaming progress to the terminal."""
     import asyncio
@@ -159,6 +164,38 @@ def run(
 
         bus.subscribe(_on_event)
 
+        console.print(f"[bold]graph[/bold]   {graph_file}")
+        console.print(f"[bold]goal[/bold]    {goal}")
+        console.print(f"[bold]backend[/bold] {backend}")
+        if matts is not None:
+            console.print(f"[bold]matts[/bold]   k={matts}")
+        console.rule()
+
+        if matts is not None:
+            from fleet.memory.matts import _resolve_bank, matts_run
+
+            if matts < 1:
+                console.print(
+                    f"[red]error[/red] --matts requires k >= 1, got {matts}"
+                )
+                raise typer.Exit(1)
+            if _resolve_bank(cg) is None:
+                console.print(
+                    "[red]error[/red] --matts requires a graph whose agent has "
+                    "memory_bank configured."
+                )
+                raise typer.Exit(1)
+
+            states, distilled = await matts_run(cg, goal, k=matts)
+            console.rule()
+            console.print(
+                f"[green]✓ matts[/green] k={matts}  "
+                f"rollouts={len(states)}  distilled={len(distilled)}"
+            )
+            for item in distilled:
+                console.print(f"  • [bold]{item.title}[/bold]")
+            return
+
         state = GraphState(
             goal=goal,
             metadata={
@@ -167,11 +204,6 @@ def run(
                 "fleet_version": _pkg_version("bottensor-fleet"),
             },
         )
-        console.print(f"[bold]graph[/bold]   {graph_file}")
-        console.print(f"[bold]goal[/bold]    {goal}")
-        console.print(f"[bold]backend[/bold] {backend}")
-        console.rule()
-
         result = await cg.run(state)
 
         console.rule()
