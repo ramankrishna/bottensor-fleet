@@ -41,6 +41,8 @@ class Agent:
         name: str = "agent",
         goal: str = "",
         model: str = "",
+        memory_bank: Any = None,
+        memory_k: int = 5,
     ) -> None:
         if llm is None:
             if not model:
@@ -57,9 +59,21 @@ class Agent:
         self.llm: LLMProtocol = llm
         self.tools: list[str] = tools or []
         self.max_iters = max_iters
+        self.memory_bank = memory_bank
+        self.memory_k = memory_k
 
     async def step(self, state: GraphState) -> GraphState:
         if not state.messages and state.goal:
+            if self.memory_bank is not None and self.memory_k > 0:
+                memories = await self.memory_bank.retrieve(state.goal, k=self.memory_k)
+                if memories:
+                    state = append_message(
+                        state,
+                        AgentMessage(
+                            role="system",
+                            content=_format_memory_block(memories),
+                        ),
+                    )
             state = append_message(state, AgentMessage(role="user", content=state.goal))
 
         tool_schemas = [to_anthropic(t) for t in self.tools if get_tool(t) is not None]
@@ -100,3 +114,13 @@ class Agent:
             role="tool",
             tool_results=[ToolResult(tool_call_id=call_id, content=content, is_error=is_error)],
         )
+
+
+def _format_memory_block(memories: list[Any]) -> str:
+    lines = ["Relevant past learnings (from prior trajectories on similar tasks):", ""]
+    for i, m in enumerate(memories, start=1):
+        lines.append(f"{i}. {m.title}")
+        lines.append(f"   {m.description}")
+        lines.append(f"   {m.content}")
+        lines.append("")
+    return "\n".join(lines).rstrip()

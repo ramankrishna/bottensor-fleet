@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from fleet.memory.item import MemoryItem
 from fleet.memory.retrieval import retrieve_relevant

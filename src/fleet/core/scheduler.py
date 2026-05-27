@@ -123,4 +123,47 @@ class Scheduler:
                 )
                 state = merge_metadata(state, {"terminated_by": "max_steps"})
 
+        await self._run_memory_writebacks(state)
         return state
+
+    async def _run_memory_writebacks(self, state: GraphState) -> None:
+        """Fire ``ingest_trajectory`` on every unique memory bank reachable
+        through the graph's agents."""
+        banks: dict[int, Any] = {}
+        for node in self.graph.nodes.values():
+            owner = getattr(node.fn, "__self__", None)
+            if owner is None:
+                continue
+            bank = getattr(owner, "memory_bank", None)
+            if bank is None:
+                continue
+            banks.setdefault(id(bank), bank)
+
+        for bank in banks.values():
+            if getattr(bank, "induction_llm", None) is None:
+                continue
+            if getattr(bank, "judge_llm", None) is None:
+                continue
+            try:
+                coro = bank.ingest_trajectory(
+                    list(state.messages),
+                    state.goal,
+                    outcome=None,
+                )
+            except Exception as exc:
+                logger.warning(f"memory writeback skipped: {exc}")
+                continue
+            if getattr(bank, "async_writeback", True):
+                asyncio.create_task(_safe_await(coro))
+            else:
+                try:
+                    await coro
+                except Exception as exc:
+                    logger.warning(f"memory writeback failed: {exc}")
+
+
+async def _safe_await(coro: Any) -> None:
+    try:
+        await coro
+    except Exception as exc:
+        logger.warning(f"memory writeback failed: {exc}")
