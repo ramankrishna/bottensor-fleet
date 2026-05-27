@@ -1,6 +1,6 @@
 [project]
 name = "bottensor-fleet"
-version = "0.1.1"
+version = "0.1.2"
 description = "Graph-native multi-agent fleet for Python. BYO-key. Local-first."
 authors = [{ name = "Rama Krishna Bachu", email = "ram@bottensor.xyz" }]
 license = { text = "Apache-2.0" }
