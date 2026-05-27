@@ -29,7 +29,11 @@ dependencies = [
 [project.optional-dependencies]
 search = ["duckduckgo-search>=6.0"]
 redis  = ["redis[hiredis]>=5.0"]
-all    = ["bottensor-fleet[search,redis]"]
+memory = [
+  "sqlite-vec>=0.1.6",
+  "sentence-transformers>=3.0",
+]
+all    = ["bottensor-fleet[search,redis,memory]"]
 dev    = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.5", "mypy>=1.10", "duckduckgo-search>=6.0", "redis[hiredis]>=5.0"]
 
 [project.scripts]
