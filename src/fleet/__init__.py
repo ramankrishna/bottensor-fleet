@@ -17,6 +17,7 @@ from fleet.core import (
     set_scratchpad,
 )
 from fleet.agents import Agent, Planner
+from fleet.memory import MemoryItem, ReasoningBank
 from fleet.tools import tool
 from fleet.skills import skill
 from fleet.errors import FleetError, ProviderError
@@ -44,6 +45,9 @@ __all__ = [
     # Agents
     "Agent",
     "Planner",
+    # Memory
+    "ReasoningBank",
+    "MemoryItem",
     # Decorators
     "tool",
     "skill",
