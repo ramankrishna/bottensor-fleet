@@ -14,7 +14,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-  "polyrt[anthropic,openai]>=0.1.0",
+  "polyrt[anthropic,openai]>=0.1.1",
   "pydantic>=2.7",
   "fastapi>=0.115",
   "uvicorn[standard]>=0.30",

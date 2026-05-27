@@ -8,15 +8,6 @@ from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt,
 from fleet.core.messages import AgentMessage, ToolCall
 from fleet.errors import ProviderError
 
-_BACKEND_ALIASES: dict[str, str] = {
-    "anthropic": "claude",
-    "claude":    "claude",
-    "openai":    "openai",
-    "gpt":       "openai",
-    "ollama":    "ollama",
-    "mlx":       "mlx",
-}
-
 
 class FleetLLM:
     """polyrt-backed LLM client with exponential-backoff retries on 429/5xx."""
@@ -30,7 +21,7 @@ class FleetLLM:
         temperature: float = 0.0,
         **kwargs: Any,
     ) -> None:
-        self.backend = _BACKEND_ALIASES.get(backend.lower(), backend.lower())
+        self.backend = backend.lower()
         self.model = model
         self._max_tokens = max_tokens
         self._temperature = temperature

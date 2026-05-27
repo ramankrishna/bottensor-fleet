@@ -29,7 +29,7 @@ from fleet import Agent, Graph
 from fleet.core.state import GraphState
 from fleet.providers.client import FleetLLM
 
-llm = FleetLLM("claude", "claude-sonnet-4-6")
+llm = FleetLLM("anthropic", "claude-sonnet-4-6")
 researcher = Agent(name="researcher", llm=llm, tools=["web_search", "web_fetch"])
 
 graph = (

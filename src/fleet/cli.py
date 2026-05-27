@@ -35,21 +35,6 @@ def main(
 # helpers
 # ---------------------------------------------------------------------------
 
-_BACKEND_ALIASES: dict[str, str] = {
-    "anthropic": "claude",
-    "claude":    "claude",
-    "openai":    "openai",
-    "gpt":       "openai",
-    "ollama":    "ollama",
-    "mlx":       "mlx",
-}
-
-
-def _resolve_backend(prefix: str) -> str:
-    """Map user-facing provider prefixes to polyrt backend names."""
-    return _BACKEND_ALIASES.get(prefix.lower(), prefix.lower())
-
-
 def _load_graph_from(path_or_module: str):  # type: ignore[return]
     """Load a Graph or CompiledGraph from a file path or dotted module name."""
     import importlib
@@ -258,8 +243,7 @@ def add_agent(
     else:
         raw_backend, model_name = model, model
 
-    backend_name = _resolve_backend(raw_backend)
-    snippet = _AGENT_SNIPPET.format(name=name, backend=backend_name, model=model_name)
+    snippet = _AGENT_SNIPPET.format(name=name, backend=raw_backend.lower(), model=model_name)
     with open(graph_file, "a", encoding="utf-8") as fh:
         fh.write(snippet)
 
