@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.2.0 (2026-05-27)
+
+### Added
+- **ReasoningBank** — experience-augmented memory for agents ([Ouyang et al., ICLR 2026](https://arxiv.org/abs/2509.25140)). Public API: `fleet.ReasoningBank`, `fleet.MemoryItem`, `fleet.memory.matts_run`, plus `fleet.memory.{stores, embedders, get_embedder, register_embedder}`.
+  - Retrieval: top-k cosine search over MiniLM embeddings, scope-filtered, prepended to the agent's context as a system message.
+  - Ingestion pipeline: LLM judge → success/failure induction → merge (replace / merge / link / insert) based on cosine similarity thresholds.
+  - Scheduler integration: every run with a memory-aware agent triggers an async writeback once per unique bank reachable from the graph. Banks without `induction_llm` + `judge_llm` are silently skipped (retrieval-only mode).
+  - Export / import as JSONL (`bank.export(path)` / `bank.import_(path)`), with embeddings preserved.
+- **MaTTS (Memory-Aware Test-Time Scaling)** — `matts_run(agent, task, bank, k=3)` runs k parallel rollouts and contrast-distills higher-quality memories than any single rollout could produce. Stored with `source="matts_contrast"`.
+- **Storage backends:**
+  - `SQLiteVecStore` (default) — persistent, uses the `sqlite-vec` extension. DB path configurable via `$FLEET_MEMORY_DB` (default `~/.fleet/reasoning_bank.db`).
+  - `InMemoryStore` — pure-Python, no dependencies, used in tests and as a fallback when `sqlite-vec` isn't installed.
+- **Embedders:** `minilm` (default, 384-d via `sentence-transformers`), `mlx` (Apple Silicon), `polyrt` (any polyrt backend that exposes embeddings). Custom embedders registerable via `fleet.memory.register_embedder(name, factory)`.
+- **Memory UI:** new **Memory** tab in `fleet ui` — browse, search, edit, delete, manually add, and export / import memories. Backed by `/api/memory*` routes.
+- **Examples:** `fleet examples learning_research_team` (4-agent team sharing a bank) and `fleet examples matts_solo` (single agent with MaTTS k=3).
+- **Agent memory args:** `Agent(memory_bank=..., memory_k=5)` enables retrieval + writeback on a per-agent basis.
+- New documentation: [`docs/memory.md`](docs/memory.md) — comprehensive guide to ReasoningBank, MaTTS, storage, embedders, the induction pipeline, API routes, configuration reference, and FAQ.
+
+### Changed
+- `polyrt>=0.1.1` is now the minimum (was `>=0.1.0`) — required for the alias and embedding hooks used by the `polyrt` embedder.
+
+### Compatibility
+- No breaking changes. The bank is fully opt-in: existing graphs and agents run unchanged. The scheduler's memory writeback is a no-op for agents without `memory_bank` set, and for banks without `induction_llm` / `judge_llm` configured.
+- `[memory]` is a new optional extra (`sqlite-vec`, `sentence-transformers`). Without it, importing `fleet.memory` still works; the bank falls back to `InMemoryStore` and raises on instantiation if no embedder is available.
+
 ## 0.1.2 (2026-05-27)
 
 ### Fixed
