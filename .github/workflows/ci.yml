@@ -21,6 +21,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Stub ui/dist for editable install
+        run: mkdir -p ui/dist
+
       - name: Install dependencies
         run: uv sync --extra dev
 
