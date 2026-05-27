@@ -69,3 +69,7 @@ target-version = "py311"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[[tool.mypy.overrides]]
+module = ["sqlite_vec", "sentence_transformers"]
+ignore_missing_imports = true
