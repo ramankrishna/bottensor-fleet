@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -9,6 +10,8 @@ from fleet.core.state import GraphState, merge_metadata
 if TYPE_CHECKING:
     from fleet.core.checkpoint import CheckpointBackend
     from fleet.core.graph import CompiledGraph
+
+logger = logging.getLogger(__name__)
 
 
 class EventBus:
@@ -113,6 +116,11 @@ class Scheduler:
                     current.update(self._get_next_nodes(name, state))
         else:
             if steps >= self.graph.max_steps:
+                logger.warning(
+                    f"Run {state.metadata.get('run_id', '?')} terminated by "
+                    f"max_steps={self.graph.max_steps}. This usually indicates an "
+                    "unbounded cycle in the graph."
+                )
                 state = merge_metadata(state, {"terminated_by": "max_steps"})
 
         return state
