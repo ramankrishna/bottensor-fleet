@@ -5,6 +5,16 @@ from __future__ import annotations
 from typing import Any, Protocol, runtime_checkable
 
 from fleet.memory.item import MemoryItem
+from fleet.memory.stores.inmemory import InMemoryStore
+
+__all__ = ["MemoryStore", "InMemoryStore"]
+
+try:
+    from fleet.memory.stores.sqlite_vec import SQLiteVecStore
+
+    __all__.append("SQLiteVecStore")
+except ImportError:
+    SQLiteVecStore = None  # type: ignore[assignment,misc]
 
 
 @runtime_checkable
