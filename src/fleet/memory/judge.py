@@ -1,0 +1,39 @@
+"""LLM-as-judge — decide whether a trajectory succeeded or failed."""
+
+from __future__ import annotations
+
+from typing import Any, Literal
+
+from fleet.core.messages import AgentMessage
+from fleet.memory.utils import load_prompt, parse_json_strict, render_trajectory
+
+
+async def judge_trajectory(
+    trajectory: list[AgentMessage | dict[str, Any]],
+    task: str,
+    llm: Any,
+) -> tuple[Literal["success", "failure"], str]:
+    """Return ``(outcome, rationale)`` for a trajectory.
+
+    The judge is strict: ambiguous or partial outcomes are classified as failures.
+    """
+    template = load_prompt("judge")
+    rendered = template.format(task=task, trajectory=render_trajectory(trajectory))
+
+    message = AgentMessage(role="user", content=rendered)
+    response = await llm.complete([message])
+    raw = response.content or ""
+    payload = parse_json_strict(raw)
+
+    if not isinstance(payload, dict):
+        raise ValueError(
+            f"judge response must be a JSON object, got {type(payload).__name__}"
+        )
+
+    outcome = str(payload.get("outcome", "")).strip().lower()
+    rationale = str(payload.get("rationale", "")).strip()
+    if outcome not in ("success", "failure"):
+        raise ValueError(
+            f"judge outcome must be 'success' or 'failure', got {outcome!r}"
+        )
+    return outcome, rationale  # type: ignore[return-value]
