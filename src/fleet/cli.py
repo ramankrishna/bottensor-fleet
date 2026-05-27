@@ -1,6 +1,8 @@
 """fleet — bottensor-fleet command-line interface."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 from rich.console import Console
 
@@ -266,6 +268,52 @@ def add_agent(
         f"  Add it to your graph:  "
         f"[bold].add_node('{name}', {name})[/bold]"
     )
+
+
+# ---------------------------------------------------------------------------
+# fleet examples [name] [--dest .]
+# ---------------------------------------------------------------------------
+
+@app.command()
+def examples(
+    name: str | None = typer.Argument(
+        None, help="Specific example to extract, or omit to list all"
+    ),
+    dest: Path = typer.Option(Path("."), "--dest", help="Where to copy the example"),
+) -> None:
+    """List or extract bundled examples to the current directory."""
+    from importlib.resources import files
+
+    examples_dir = files("fleet.examples")
+    available = sorted(
+        p.name for p in examples_dir.iterdir()
+        if p.name.endswith(".py") and p.name != "__init__.py"
+    )
+
+    if name is None:
+        typer.echo("Available examples:")
+        for ex in available:
+            typer.echo(f"  {ex}")
+        typer.echo("\nExtract with: fleet examples <name>")
+        return
+
+    if not name.endswith(".py"):
+        name = f"{name}.py"
+
+    if name not in available:
+        typer.echo(f"Unknown example: {name}", err=True)
+        typer.echo(f"Available: {', '.join(available)}", err=True)
+        raise typer.Exit(1)
+
+    src = examples_dir / name
+    dest_path = dest / name
+    if dest_path.exists():
+        typer.echo(f"Refusing to overwrite existing file: {dest_path}", err=True)
+        raise typer.Exit(1)
+
+    dest_path.write_text(src.read_text())
+    typer.echo(f"Extracted: {dest_path}")
+    typer.echo(f"Run with: fleet run {dest_path}")
 
 
 # ---------------------------------------------------------------------------

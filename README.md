@@ -58,6 +58,8 @@ Opens a local dashboard at `http://localhost:8765` with a live DAG view, per-age
 |---|---|
 | `fleet new <name>` | Scaffold a new graph |
 | `fleet run <graph.py>` | Run a graph from a file |
+| `fleet replay <run_id>` | Re-run a past graph from its saved source path |
+| `fleet examples [name]` | List bundled examples or extract one to the current directory |
 | `fleet ui` | Launch the local dashboard |
 | `fleet add-agent` | Append an agent to an existing graph |
 | `fleet ls` | List past runs |
