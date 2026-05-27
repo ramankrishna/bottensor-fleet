@@ -2,13 +2,12 @@
 from __future__ import annotations
 
 import json
-import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 # ── keep a clean registry snapshot so decorator tests don't bleed across tests ──
-from fleet.tools.base import _TOOL_REGISTRY, get_tool, to_anthropic, to_openai, tool
+from fleet.tools.base import get_tool, to_anthropic, to_openai, tool
 
 
 # ---------------------------------------------------------------------------
@@ -34,7 +33,6 @@ def test_tool_sync_fn_is_wrapped_async():
         return x + 1
 
     import asyncio
-    import inspect
     entry = get_tool("_sync_tool")
     assert entry is not None
     assert asyncio.iscoroutinefunction(entry["fn"])

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 
@@ -11,7 +10,7 @@ from fleet.agents.memory import ScratchpadMemory, VectorMemory
 from fleet.agents.planner import Planner
 from fleet.core.messages import AgentMessage, ToolCall
 from fleet.core.state import GraphState
-from fleet.tools.base import _TOOL_REGISTRY, tool
+from fleet.tools.base import tool
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +145,7 @@ async def test_step_max_iters_stops_loop():
     agent = Agent(llm, tools=["_noop_test"], max_iters=3)
     state = GraphState(goal="loop", messages=[AgentMessage(role="user", content="go")])
 
-    result = await agent.step(state)
+    await agent.step(state)
 
     # 3 LLM calls maximum
     assert len(llm.calls) == 3

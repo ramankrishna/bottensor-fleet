@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from fleet.agents.agent import LLMProtocol
 from fleet.core.messages import AgentMessage
 from fleet.core.state import GraphState, append_message, set_scratchpad
 
@@ -14,7 +15,7 @@ _USER_TEMPLATE = "Decompose this goal into sub-goals:\n\n{goal}"
 class Planner:
     """Node that decomposes state.goal into sub-goals via ReAct prompting."""
 
-    def __init__(self, llm: object) -> None:
+    def __init__(self, llm: LLMProtocol | None) -> None:
         self._llm = llm
 
     async def __call__(self, state: GraphState) -> GraphState:

@@ -59,7 +59,7 @@ async def plan_step(state: GraphState) -> GraphState:
     state = await planner.step(state)
     last = state.messages[-1]
     try:
-        qs = json.loads(last.content)
+        qs = json.loads(last.content or "")
         state = set_scratchpad(state, "q1", qs.get("q1", ""))
         state = set_scratchpad(state, "q2", qs.get("q2", ""))
     except (ValueError, AttributeError):
