@@ -105,12 +105,25 @@ async def _contrast_distill(
 
     response = await llm.complete([AgentMessage(role="user", content=prompt)])
     raw = response.content or ""
-    payload = parse_json_strict(raw)
+    try:
+        payload = parse_json_strict(raw)
+    except ValueError as exc:
+        hint = (
+            " — response appears truncated, consider raising max_tokens on the contrast LLM"
+            if _looks_truncated(raw) else ""
+        )
+        logger.warning(
+            "matts_contrast: skipping distillation, could not parse LLM response as JSON%s (%s)",
+            hint, exc,
+        )
+        return []
 
     if not isinstance(payload, list):
-        raise ValueError(
-            f"matts_contrast response must be a JSON array, got {type(payload).__name__}"
+        logger.warning(
+            "matts_contrast: skipping distillation, response must be a JSON array, got %s",
+            type(payload).__name__,
         )
+        return []
 
     integrated: list[MemoryItem] = []
     for entry in payload[:3]:
@@ -134,3 +147,8 @@ async def _contrast_distill(
         _action, stored = await integrate_candidate(bank, candidate)
         integrated.append(stored)
     return integrated
+
+
+def _looks_truncated(text: str) -> bool:
+    stripped = text.strip().rstrip("`").rstrip()
+    return bool(stripped) and stripped[-1] not in ("}", "]")
