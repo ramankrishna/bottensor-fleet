@@ -9,10 +9,14 @@ import httpx
 from fleet.tools.base import tool
 
 try:
-    from duckduckgo_search import DDGS
+    from ddgs import DDGS  # package renamed from duckduckgo-search → ddgs
     _SEARCH_AVAILABLE = True
 except ImportError:
-    _SEARCH_AVAILABLE = False
+    try:
+        from duckduckgo_search import DDGS  # type: ignore[no-redef]
+        _SEARCH_AVAILABLE = True
+    except ImportError:
+        _SEARCH_AVAILABLE = False
 
 
 class _TextExtractor(HTMLParser):
