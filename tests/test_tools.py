@@ -263,6 +263,62 @@ async def test_web_fetch_1mb_cap():
 
 
 # ---------------------------------------------------------------------------
+# pretty_print
+# ---------------------------------------------------------------------------
+
+async def test_pretty_print_registry_lookup():
+    # Importing fleet.tools triggers the side-effect import of `printing`,
+    # which is what populates the registry. Verify both that the entry exists
+    # and that its schema was derived correctly from the type hints.
+    import fleet.tools  # noqa: F401
+
+    entry = get_tool("pretty_print")
+    assert entry is not None
+    assert entry["name"] == "pretty_print"
+    assert "Print a formatted message" in entry["description"]
+
+    params = entry["parameters"]
+    props = params["properties"]
+    assert props["message"]["type"] == "string"
+    assert props["prefix"]["type"] == "string"
+    assert props["prefix"]["default"] == "[fleet]"
+    assert props["upper"]["type"] == "boolean"
+    assert props["upper"]["default"] is False
+    assert params["required"] == ["message"]
+
+
+async def test_pretty_print_executes_and_prints(capsys):
+    from fleet.tools.printing import pretty_print
+
+    result = await pretty_print("hello world")
+    captured = capsys.readouterr()
+
+    assert result == "[fleet] hello world"
+    assert "[fleet] hello world" in captured.out
+
+
+async def test_pretty_print_upper_and_custom_prefix(capsys):
+    from fleet.tools.printing import pretty_print
+
+    result = await pretty_print("ship it", prefix=">>>", upper=True)
+    captured = capsys.readouterr()
+
+    assert result == ">>> SHIP IT"
+    assert ">>> SHIP IT" in captured.out
+
+
+def test_pretty_print_provider_schemas():
+    # The tool should be exposable through both Anthropic and OpenAI shapes.
+    ant = to_anthropic("pretty_print")
+    assert ant["name"] == "pretty_print"
+    assert ant["input_schema"]["properties"]["message"]["type"] == "string"
+
+    oai = to_openai("pretty_print")
+    assert oai["type"] == "function"
+    assert oai["function"]["name"] == "pretty_print"
+
+
+# ---------------------------------------------------------------------------
 # skills
 # ---------------------------------------------------------------------------
 

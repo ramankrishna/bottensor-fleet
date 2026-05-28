@@ -6,6 +6,7 @@ from fleet.tools.base import _TOOL_REGISTRY, get_tool, to_anthropic, to_openai, 
 # for web_search) doesn't break the whole package.
 from fleet.tools import files as _files  # noqa: F401
 from fleet.tools import code as _code  # noqa: F401
+from fleet.tools import printing as _printing  # noqa: F401
 
 try:
     from fleet.tools import web as _web  # noqa: F401

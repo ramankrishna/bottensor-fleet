@@ -1,0 +1,138 @@
+{
+  "k1_nobank": {
+    "n_tasks": 10,
+    "accuracy": 1.0,
+    "success_count": 10,
+    "input_tokens": 4301,
+    "output_tokens": 381,
+    "total_tokens": 4682,
+    "cost_usd": 0.00621,
+    "wall_s_total": 16.9,
+    "wall_s_avg": 1.69,
+    "tool_call_runs": 3,
+    "by_category": {
+      "math": {
+        "n": 3,
+        "succ": 3,
+        "accuracy": 1.0
+      },
+      "reasoning": {
+        "n": 2,
+        "succ": 2,
+        "accuracy": 1.0
+      },
+      "code": {
+        "n": 2,
+        "succ": 2,
+        "accuracy": 1.0
+      },
+      "tool": {
+        "n": 3,
+        "succ": 3,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "k1_bank": {
+    "n_tasks": 10,
+    "accuracy": 1.0,
+    "success_count": 10,
+    "input_tokens": 7718,
+    "output_tokens": 499,
+    "total_tokens": 8217,
+    "cost_usd": 0.01021,
+    "wall_s_total": 15.69,
+    "wall_s_avg": 1.569,
+    "tool_call_runs": 3,
+    "by_category": {
+      "math": {
+        "n": 3,
+        "succ": 3,
+        "accuracy": 1.0
+      },
+      "reasoning": {
+        "n": 2,
+        "succ": 2,
+        "accuracy": 1.0
+      },
+      "code": {
+        "n": 2,
+        "succ": 2,
+        "accuracy": 1.0
+      },
+      "tool": {
+        "n": 3,
+        "succ": 3,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "k2_matts": {
+    "n_tasks": 10,
+    "accuracy": 1.0,
+    "success_count": 10,
+    "input_tokens": 26518,
+    "output_tokens": 3167,
+    "total_tokens": 29685,
+    "cost_usd": 0.04235,
+    "wall_s_total": 49.05,
+    "wall_s_avg": 4.905,
+    "tool_call_runs": 3,
+    "by_category": {
+      "math": {
+        "n": 3,
+        "succ": 3,
+        "accuracy": 1.0
+      },
+      "reasoning": {
+        "n": 2,
+        "succ": 2,
+        "accuracy": 1.0
+      },
+      "code": {
+        "n": 2,
+        "succ": 2,
+        "accuracy": 1.0
+      },
+      "tool": {
+        "n": 3,
+        "succ": 3,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "k4_matts": {
+    "n_tasks": 10,
+    "accuracy": 1.0,
+    "success_count": 10,
+    "input_tokens": 51563,
+    "output_tokens": 4849,
+    "total_tokens": 56412,
+    "cost_usd": 0.07581,
+    "wall_s_total": 60.81,
+    "wall_s_avg": 6.081,
+    "tool_call_runs": 3,
+    "by_category": {
+      "math": {
+        "n": 3,
+        "succ": 3,
+        "accuracy": 1.0
+      },
+      "reasoning": {
+        "n": 2,
+        "succ": 2,
+        "accuracy": 1.0
+      },
+      "code": {
+        "n": 2,
+        "succ": 2,
+        "accuracy": 1.0
+      },
+      "tool": {
+        "n": 3,
+        "succ": 3,
+        "accuracy": 1.0
+      }
+    }
+  }
+}

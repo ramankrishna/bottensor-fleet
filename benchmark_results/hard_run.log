@@ -1,0 +1,88 @@
+
+=== HARD-A: baseline k=1 (no bank), 3 repeats ===
+  rep0 [trap_bat_ball     ] ok=True t= 1.16s in=58 out=7 note=numeric match 0.05
+  rep0 [trap_widgets      ] ok=True t= 0.92s in=49 out=5 note=numeric match 5
+  rep0 [trap_snail        ] ok=True t= 1.16s in=58 out=5 note=numeric match 8
+  rep0 [trap_sheep        ] ok=True t= 0.91s in=34 out=5 note=numeric match 9
+  rep0 [trap_handshakes   ] ok=True t= 0.64s in=44 out=5 note=numeric match 15
+  rep1 [trap_bat_ball     ] ok=True t= 0.99s in=58 out=7 note=numeric match 0.05
+  rep1 [trap_widgets      ] ok=True t= 0.95s in=49 out=5 note=numeric match 5
+  rep1 [trap_snail        ] ok=True t= 1.05s in=58 out=5 note=numeric match 8
+  rep1 [trap_sheep        ] ok=True t= 1.28s in=34 out=5 note=numeric match 9
+  rep1 [trap_handshakes   ] ok=True t= 0.92s in=44 out=5 note=numeric match 15
+  rep2 [trap_bat_ball     ] ok=True t= 0.95s in=58 out=7 note=numeric match 0.05
+  rep2 [trap_widgets      ] ok=True t= 0.95s in=49 out=5 note=numeric match 5
+  rep2 [trap_snail        ] ok=True t= 0.85s in=58 out=5 note=numeric match 8
+  rep2 [trap_sheep        ] ok=True t= 0.94s in=34 out=5 note=numeric match 9
+  rep2 [trap_handshakes   ] ok=True t= 0.65s in=44 out=5 note=numeric match 15
+
+=== HARD-B: MaTTS k=4 majority vote (no bank), 3 repeats ===
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|██████████| 103/103 [00:00<00:00, 6938.86it/s]
+  rep0 [trap_bat_ball     ] ok=True t=11.06s in=894 out=367 note=vote=0.05 per_rollout=[True, True, True, True] numeric match 0.05
+  rep0 [trap_widgets      ] ok=True t= 8.55s in=3269 out=503 note=vote=5 per_rollout=[True, True, True, True] numeric match 5
+  rep0 [trap_snail        ] ok=True t=11.97s in=4538 out=721 note=vote=8 per_rollout=[True, True, True, True] numeric match 8
+  rep0 [trap_sheep        ] ok=True t= 7.75s in=4094 out=352 note=vote=9 per_rollout=[True, True, True, True] numeric match 9
+  rep0 [trap_handshakes   ] ok=True t= 6.94s in=4376 out=409 note=vote=15 per_rollout=[True, True, True, True] numeric match 15
+  rep1 [trap_bat_ball     ] ok=True t= 7.98s in=4526 out=397 note=vote=0.05 per_rollout=[True, True, True, True] numeric match 0.05
+Traceback (most recent call last):
+  File "/Users/ram/bottensor-fleet/src/fleet/memory/utils.py", line 23, in parse_json_strict
+    return json.loads(cleaned)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/Users/ram/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/lib/python3.11/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ram/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/lib/python3.11/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ram/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/lib/python3.11/json/decoder.py", line 353, in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ^^^^^^^^^^^^^^^^^^^^^^
+json.decoder.JSONDecodeError: Unterminated string starting at: line 15 column 16 (char 1866)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/ram/bottensor-fleet/scripts/run_hard_benchmarks.py", line 290, in <module>
+    asyncio.run(main())
+  File "/Users/ram/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/lib/python3.11/asyncio/runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/Users/ram/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ram/.local/share/uv/python/cpython-3.11.15-macos-aarch64-none/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/ram/bottensor-fleet/scripts/run_hard_benchmarks.py", line 231, in main
+    m = await run_matts(task, llm, k=4, bank=bank)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ram/bottensor-fleet/scripts/run_hard_benchmarks.py", line 148, in run_matts
+    states, distilled = await matts_run(runnable, task.prompt, bank=bank, k=k)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ram/bottensor-fleet/src/fleet/memory/matts.py", line 65, in matts_run
+    distilled = await _contrast_distill(list(states), task, llm, resolved_bank)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ram/bottensor-fleet/src/fleet/memory/matts.py", line 108, in _contrast_distill
+    payload = parse_json_strict(raw)
+              ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ram/bottensor-fleet/src/fleet/memory/utils.py", line 25, in parse_json_strict
+    raise ValueError(
+ValueError: LLM response was not valid JSON: Unterminated string starting at: line 15 column 16 (char 1866)
+--- raw response ---
+```json
+[
+  {
+    "title": "Derive explicit rate equations before applying transformations",
+    "description": "Apply when solving scaling problems that involve multiple entities with fixed constraints across different quantities.",
+    "content": "All four trajectories arrived at the correct answer (5 minutes) but none articulated the underlying rate principle: production rate per machine per unit time. A successful approach would explicitly derive that each machine produces 0.2 widgets/minute (5 widgets ÷ 5 machines ÷ 5 minutes), then apply this rate to verify that 100 machines produce 100 widgets in the same 5 minutes. Without this explicit derivation, the reasoning remains opaque and vulnerable to failure when problem parameters change (e.g., if the input were '5 machines make 10 widgets in 5 minutes')."
+  },
+  {
+    "title": "Validate answers against constraint preservation under scaling",
+    "description": "Apply when a problem specifies fixed relationships between quantities that should hold after transformation.",
+    "content": "None of the trajectories explicitly verified their answer by checking that the production rate per machine remained constant across the scaling transformation. A robust approach would state: 'Since each machine's production rate is fixed at 1 widget per 5 minutes, scaling from 5 to 100 machines while scaling from 5 to 100 widgets preserves the time required.' This validation step catches errors and builds confidence that the answer generalizes correctly, rather than relying on pattern matching between input and output quantities."
+  },
+  {
+    "title": "Distinguish pattern matching from principled reasoning in similar-looking problems",
+    "description": "Apply when multiple trajectories converge on the same answer but may have used surface-level similarity rather than deep understanding.",
+    "content": "All trajectories produced '5' but appear to have relied on the coincidental fact that input and output quantities are identical (5 machines → 100 machines, 5 widgets → 100 widgets, 5 minutes → 5 minutes). A principled approach would recognize that this problem requires rate analysis independent of whether the numbers match superficially. The correct reasoning applies even if the problem asked 'how long for 50 machines to make 200 widgets?', whereas pattern matching would

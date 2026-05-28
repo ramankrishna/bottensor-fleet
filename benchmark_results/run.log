@@ -1,0 +1,70 @@
+
+=== Config A: baseline (k=1, no bank) ===
+  [math_train        ] ok=True t= 1.02s in=36 out=5 note=numeric match 150
+  [math_even_sum     ] ok=True t= 0.83s in=41 out=5 note=numeric match 110
+  [math_compound     ] ok=True t= 1.46s in=52 out=88 note=numeric match 1157.63
+  [reasoning_apples  ] ok=True t= 1.05s in=48 out=5 note=numeric match 5
+  [reasoning_geometric] ok=True t= 4.22s in=34 out=5 note=numeric match 162
+  [code_fib          ] ok=True t= 0.84s in=59 out=5 note=numeric match 55
+  [code_vowels       ] ok=True t= 0.75s in=43 out=5 note=numeric match 3
+  [tool_factorial    ] ok=True t= 2.04s in=1310 out=88 note=numeric match 40320
+[bench] HELLO
+  [tool_pretty       ] ok=True t= 2.01s in=1416 out=98 note=substring '[bench] HELLO'
+  [tool_listdir      ] ok=True t= 2.69s in=1262 out=77 note=numeric match 0
+
+=== Config B: k=1 + ReasoningBank ===
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|██████████| 103/103 [00:00<00:00, 8177.89it/s]
+  populated bank with 7 memories
+  [math_train        ] ok=True t= 0.70s in=278 out=5 mems=2 note=numeric match 150
+  [math_even_sum     ] ok=True t= 1.32s in=294 out=5 mems=2 note=numeric match 110
+  [math_compound     ] ok=True t= 1.77s in=336 out=167 mems=2 note=numeric match 1157.63
+  [reasoning_apples  ] ok=True t= 0.95s in=324 out=5 mems=2 note=numeric match 5
+  [reasoning_geometric] ok=True t= 0.95s in=287 out=5 mems=2 note=numeric match 162
+  [code_fib          ] ok=True t= 1.09s in=301 out=5 mems=2 note=numeric match 55
+  [code_vowels       ] ok=True t= 0.74s in=285 out=5 mems=2 note=numeric match 3
+  [tool_factorial    ] ok=True t= 3.68s in=1879 out=128 mems=2 note=numeric match 40320
+[bench] HELLO
+  [tool_pretty       ] ok=True t= 2.66s in=1902 out=98 mems=2 note=substring '[bench] HELLO'
+  [tool_listdir      ] ok=True t= 1.85s in=1832 out=76 mems=2 note=numeric match 0
+
+=== Config C: MaTTS k=2 + bank ===
+  populated bank with 7 memories
+  [math_train        ] ok=True t= 4.52s in=1502 out=145 distilled=1 note=numeric match 150
+  [math_even_sum     ] ok=True t= 5.14s in=1555 out=301 distilled=2 note=numeric match 110
+  [math_compound     ] ok=True t= 4.08s in=1854 out=403 distilled=1 note=numeric match 1157.63
+  [reasoning_apples  ] ok=True t= 5.89s in=1590 out=402 distilled=2 note=numeric match 5
+  [reasoning_geometric] ok=True t= 5.22s in=1520 out=312 distilled=2 note=numeric match 162
+  [code_fib          ] ok=True t= 3.79s in=1825 out=177 distilled=1 note=numeric match 55
+  [code_vowels       ] ok=True t= 4.70s in=1501 out=305 distilled=2 note=numeric match 3
+  [tool_factorial    ] ok=True t= 6.40s in=4954 out=478 distilled=2 note=numeric match 40320
+[bench] HELLO
+[bench] HELLO
+  [tool_pretty       ] ok=True t= 4.54s in=4823 out=340 distilled=1 note=substring '[bench] HELLO'
+  [tool_listdir      ] ok=True t= 4.76s in=5394 out=304 distilled=1 note=numeric match 0
+
+=== Config D: MaTTS k=4 + bank ===
+  populated bank with 7 memories
+  [math_train        ] ok=True t= 4.15s in=2632 out=262 distilled=2 note=numeric match 150
+  [math_even_sum     ] ok=True t= 4.80s in=2725 out=348 distilled=2 note=numeric match 110
+  [math_compound     ] ok=True t= 4.80s in=3416 out=777 distilled=1 note=numeric match 1157.63
+  [reasoning_apples  ] ok=True t= 7.05s in=2956 out=349 distilled=2 note=numeric match 5
+  [reasoning_geometric] ok=True t= 6.63s in=3206 out=334 distilled=2 note=numeric match 162
+  [code_fib          ] ok=True t= 5.62s in=3575 out=356 distilled=2 note=numeric match 55
+  [code_vowels       ] ok=True t= 5.41s in=2743 out=347 distilled=2 note=numeric match 3
+  [tool_factorial    ] ok=True t=11.15s in=10635 out=892 distilled=3 note=numeric match 40320
+[bench] HELLO
+[bench] HELLO
+[bench] HELLO
+[bench] HELLO
+  [tool_pretty       ] ok=True t= 5.17s in=9217 out=549 distilled=1 note=substring '[bench] HELLO'
+  [tool_listdir      ] ok=True t= 6.04s in=10458 out=635 distilled=2 note=numeric match 0
+
+Wrote raw results → /Users/ram/bottensor-fleet/benchmark_results/results.json
+Wrote summary → /Users/ram/bottensor-fleet/benchmark_results/summary.json
+
+=== SUMMARY ===
+  k1_nobank: acc=1.00 (10/10) in=4301 out=381 $0.0062 16.9s
+  k1_bank: acc=1.00 (10/10) in=7718 out=499 $0.0102 15.7s
+  k2_matts: acc=1.00 (10/10) in=26518 out=3167 $0.0423 49.0s
+  k4_matts: acc=1.00 (10/10) in=51563 out=4849 $0.0758 60.8s
