@@ -67,8 +67,23 @@ def load_graph(graph_module: str) -> Graph | CompiledGraph:
 # Background run execution
 # ---------------------------------------------------------------------------
 
+_KEY_ENV_MAP = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "mlx": "MLX_API_KEY",
+    "ollama": "OLLAMA_API_KEY",
+}
+
+
 async def _execute_run(run_id: str, graph_module: str, backend: str) -> None:
     record = _RUNS[run_id]
+    # Inject provider keys into env so polyrt backends can find them
+    _saved_env: dict[str, str | None] = {}
+    for provider, key in record.provider_keys.items():
+        if key:
+            env_var = _KEY_ENV_MAP.get(provider.lower(), f"{provider.upper()}_API_KEY")
+            _saved_env[env_var] = os.environ.get(env_var)
+            os.environ[env_var] = key
     try:
         raw = load_graph(graph_module)
         cg: CompiledGraph = raw.compile(backend=backend) if isinstance(raw, Graph) else raw
@@ -90,6 +105,12 @@ async def _execute_run(run_id: str, graph_module: str, backend: str) -> None:
             {"type": "run_finished", "run_id": run_id, "status": "error", "error": str(exc)}
         )
     finally:
+        # Restore original env vars
+        for env_var, old_val in _saved_env.items():
+            if old_val is None:
+                os.environ.pop(env_var, None)
+            else:
+                os.environ[env_var] = old_val
         record.provider_keys.clear()
 
 
