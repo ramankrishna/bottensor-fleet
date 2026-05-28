@@ -177,11 +177,45 @@ async def test_matts_run_no_contrast_llm_raises() -> None:
         await matts_run(_StubRunnable(), "task", bank=bank, k=2)
 
 
-async def test_matts_run_rejects_non_array_response() -> None:
+async def test_matts_run_non_array_response_returns_empty_distilled(caplog) -> None:
     bad = _ScriptedLLM([json.dumps({"not": "an array"})])
     bank = _bank(induction_llm=bad)
-    with pytest.raises(ValueError, match="must be a JSON array"):
-        await matts_run(_StubRunnable(), "task", bank=bank, k=2)
+    with caplog.at_level("WARNING", logger="fleet.memory.matts"):
+        states, distilled = await matts_run(_StubRunnable(), "task", bank=bank, k=2)
+    assert len(states) == 2
+    assert distilled == []
+    assert any("must be a JSON array" in rec.message for rec in caplog.records)
+
+
+async def test_matts_run_truncated_json_returns_empty_distilled(caplog) -> None:
+    # JSON that runs into max_tokens mid-string — closing quote, brace, and
+    # bracket all missing. This is the exact failure mode from BENCHMARKS §5.
+    truncated = (
+        '[{"title": "Validate tool output shape early", '
+        '"description": "When chaining tools whose output feeds the next call", '
+        '"content": "Winning trajectories checked schema before passing data on'
+    )
+    bad = _ScriptedLLM([truncated])
+    bank = _bank(induction_llm=bad)
+    with caplog.at_level("WARNING", logger="fleet.memory.matts"):
+        states, distilled = await matts_run(_StubRunnable(), "task", bank=bank, k=2)
+    assert len(states) == 2
+    assert distilled == []
+    # Truncation hint should fire when the response doesn't end with } or ].
+    assert any("truncated" in rec.message for rec in caplog.records)
+
+
+async def test_matts_run_malformed_json_returns_empty_without_truncation_hint(caplog) -> None:
+    # Garbage that is not truncated (ends with ]) — no truncation hint expected.
+    bad = _ScriptedLLM(["[not valid json]"])
+    bank = _bank(induction_llm=bad)
+    with caplog.at_level("WARNING", logger="fleet.memory.matts"):
+        states, distilled = await matts_run(_StubRunnable(), "task", bank=bank, k=2)
+    assert len(states) == 2
+    assert distilled == []
+    msgs = [rec.message for rec in caplog.records]
+    assert any("could not parse" in m for m in msgs)
+    assert not any("truncated" in m for m in msgs)
 
 
 # ---------------------------------------------------------------------------
