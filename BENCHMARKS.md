@@ -16,11 +16,13 @@ Raw artifacts: [`benchmark_results/results.json`](benchmark_results/results.json
 **Headline findings:**
 
 1. **Accuracy saturates at the model's capability ceiling.** Claude Haiku 4.5 solves every task in our suite (incl. classic LLM trap puzzles) at 100% under k=1 with no memory. Test-time scaling cannot improve what is already solved — MaTTS and ReasoningBank cannot raise accuracy past 100%.
-2. **MaTTS cost scales near-linearly with k.** Total tokens grew ~6.3× from k=1 to k=2 and ~12.0× to k=4 (including the contrast-distill call). Wall time grew **sub-linearly** (2.9× / 3.6×) because rollouts execute in parallel — the bottleneck is the contrast LLM, not the rollouts.
-3. **Self-consistency held perfectly at k=4.** On 5 trap puzzles run 4 ways each, all 4 rollouts agreed on the correct answer in 100% of cases (16 / 16 unanimous votes before crash). This is the regime where MaTTS would *also* be cheap to skip via early exit on agreement — an obvious follow-on for the harness.
+2. **MaTTS cost scales near-linearly with k; latency scales sub-linearly but with a floor.** Total tokens grew ~6.3× from k=1 to k=2 and ~12.0× to k=4 (including the contrast-distill call). Wall time grew 2.9× (k=2) and 3.6× (k=4) over baseline — k=4 sits *below* a serial-rollouts implementation's 4× floor (rollouts run in parallel via `asyncio.gather`), but k=2 sits *above* a rollouts-only 2× expectation because a roughly fixed contrast-distill call adds ≈ 1.5 s regardless of `k`. See §2.3 for the breakdown.
+3. **Self-consistency held perfectly at k=4.** Across the 6 MaTTS trials that completed before the contrast-distill crash (see §5), every one of the 4 parallel rollouts produced the correct answer — **24 / 24 rollouts correct, 6 / 6 trials unanimous**. This is the regime where MaTTS would *also* be cheap to skip via early exit on agreement — an obvious follow-on for the harness.
 4. **Contrast distillation produces noticeably richer memory items than single-trajectory induction.** k=4 produced 1–3 distilled items per task vs 1–2 at k=2, and the items showed visible meta-strategic content (e.g. "Derive explicit rate equations before applying transformations") that single-rollout induction did not surface.
 5. **ReasoningBank retrieval adds ~3.4K input tokens per task** (the 3 retrieved memories plus the system block) without affecting accuracy on this independent-task suite. It is a *write-path* feature here, not a read-path win — value is expected on tasks that share structure with prior trajectories, which our suite deliberately did not.
-6. **One real bug surfaced.** MaTTS contrast distill failed on a verbose Haiku response that exceeded `max_tokens=512` — see [Bug surfaced](#bug-surfaced-during-benchmarking) below.
+6. **One real bug surfaced (now fixed).** MaTTS contrast distill failed on a verbose Haiku response that exceeded `max_tokens=512`. Fix landed in commit `411cf6c` — see [Bug surfaced](#bug-surfaced-during-benchmarking) below.
+
+> **Caveat.** Every task in the main suite was solved at 100 % by the base model alone (Haiku 4.5 is above the suite's difficulty ceiling). What follows therefore measures the **cost and latency mechanics** of MaTTS / ReasoningBank, not an accuracy lift over baseline. Demonstrating MaTTS's accuracy benefit requires harder benchmarks — see §8.
 
 ---
 
@@ -64,7 +66,7 @@ The Anthropic key is a dev-tier 30 K-TPM key. The harness inserts `1.2 s` betwee
 
 ### 1.5 Cost model
 
-Anthropic Haiku 4.5 pricing as of 2026-05: **$1.00 / M input**, **$5.00 / M output**. Cost in this report is **USD spent on the LLM provider only** — it does not include the MiniLM embedder (CPU-local), the SQLite/InMemory store (CPU-local), or any orchestration overhead.
+Anthropic Haiku 4.5 pricing **as of 2026-05-28**: **$1.00 / M input**, **$5.00 / M output** (pricing snapshot — Anthropic may revise these rates; recompute from the per-task token columns in `results.json` if comparing to a later list price). Cost in this report is **USD spent on the LLM provider only** — it does not include the MiniLM embedder (CPU-local), the SQLite/InMemory store (CPU-local), or any orchestration overhead.
 
 ---
 
@@ -112,7 +114,7 @@ Accuracy was 100 % everywhere; the interesting variance is in cost per category.
 
 Tool-use tasks dominate token consumption regardless of config because the agent has to receive the tool result back and respond again. Under MaTTS, this round-trip happens `k` times in parallel — so the cost gap between text-only tasks and tool tasks **widens** as k grows.
 
-### 2.3 Latency: parallel rollouts pay off
+### 2.3 Latency: parallel rollouts + a fixed contrast-distill tax
 
 Wall-clock time per task by config:
 
@@ -125,7 +127,12 @@ k2_matts        4.91    3.79    6.40
 k4_matts        6.08    4.15   11.15
 ```
 
-If MaTTS ran rollouts sequentially we would expect 2× and 4× the baseline (3.4 s and 6.8 s). The actual measured ratios are **2.9× and 3.6×**, confirming that `matts_run` parallelises rollouts via `asyncio.gather` and the bottleneck shifts to the (sequential) contrast-distill call. This is a real, measurable architectural win — a serial MaTTS implementation would be much slower at k=4.
+MaTTS adds two things to baseline latency: (a) `k` rollouts, which `matts_run` issues concurrently via `asyncio.gather`, and (b) one *sequential* contrast-distill LLM call that runs after all rollouts return. The measured numbers are consistent with both effects, and only fully explained by considering them together:
+
+- **k=2 measured 2.9× baseline.** This is **above** the 2× a serial-rollouts-only execution would predict (3.4 s). The extra ≈ 1.5 s is the contrast-distill call — it is paid once, regardless of `k`, and dominates the small-k regime.
+- **k=4 measured 3.6× baseline.** This is **below** the 4× a serial-rollouts implementation would predict (6.8 s). Adding 2 more rollouts only added ≈ 1.2 s of wall time on top of k=2, which is consistent with rollouts running in parallel (the marginal cost of k=4 vs k=2 is the slowest extra rollout, not 2 more serial rollouts).
+
+So the honest claim is: **rollouts do execute in parallel** — that is what keeps k=4 under the 4× serial floor — **but a roughly fixed contrast-distill cost dominates at low k**, which is why k=2 sits *above* its 2× rollouts-only expectation. A serial MaTTS implementation would be substantially slower at k=4; a contrast-free MaTTS would be substantially faster at k=2.
 
 ### 2.4 Memory mechanics: distillation richness scales with k
 
@@ -182,7 +189,7 @@ Because every main-suite task succeeded at every config, we ran a focused second
 | HARD-A | k=1, no bank, 3 repeats | 15 | 15 | **100 %** |
 | HARD-B | k=4 MaTTS majority-vote, no bank | 6¹ | 6 | **100 %** |
 
-¹ HARD-B aborted at 6 / 15 trials due to a contrast-distill crash; see §5. Of those 6 trials, every one had **all 4 rollouts agree on the same correct answer** — i.e. unanimous (4/4) self-consistency on every trap. There was no observed regime in this suite where k=4 added accuracy beyond k=1.
+¹ HARD-B aborted at 6 / 15 planned trials due to a contrast-distill crash; see §5. Across those 6 completed trials × 4 rollouts each = **24 individual rollouts, every one correct, every trial 4-of-4 unanimous**. There was no observed regime in this suite where k=4 added accuracy beyond k=1.
 
 **Interpretation.** Haiku 4.5 is strong enough that classic GPT-3-era traps have moved below its capability boundary. To meaningfully exercise MaTTS we would need either (a) a harder benchmark such as MATH-500, GPQA, or SWE-bench-Lite, or (b) a smaller / older model where the failure rate is high enough that 4-way voting changes the outcome. Both are out of scope for a dev-tier 30 K-TPM probe, but are the natural next experiments.
 
@@ -190,23 +197,20 @@ Because every main-suite task succeeded at every config, we ran a focused second
 
 ## 5. Bug surfaced during benchmarking
 
-`scripts/run_hard_benchmarks.py` crashed after 16 successful MaTTS runs with:
+> **Status: fixed.** This bug was found, root-caused, and patched as part of the v0.2 hardening pass — see commit `411cf6c` ("fix(matts): handle truncated/invalid contrast JSON gracefully"). The section is kept for posterity because the bug is a useful case study in benchmark-as-fuzz-test.
+
+`scripts/run_hard_benchmarks.py` crashed on the 7th MaTTS trial (after 6 successful trials × 4 rollouts = 24 successful rollouts) with:
 
 ```
 ValueError: LLM response was not valid JSON:
   Unterminated string starting at: line 15 column 16 (char 1866)
 ```
 
-The contrast LLM (Haiku 4.5 at temperature 0.7) generated ~2 000-character JSON with rich, paragraph-length `content` fields and ran into the `max_tokens=512` ceiling configured in the FleetLLM instance, truncating the response mid-string. The benchmark harness did not catch this — but neither does production `matts_run` itself, which calls `parse_json_strict` on the raw response and re-raises.
+The contrast LLM (Haiku 4.5 at temperature 0.7) generated ~2 000-character JSON with rich, paragraph-length `content` fields and ran into the `max_tokens=512` ceiling configured in the FleetLLM instance, truncating the response mid-string. The original `_contrast_distill` called `parse_json_strict` on the raw response and re-raised, propagating the failure all the way to the benchmark.
 
-**Reproducer:** any MaTTS run on a complex multi-step task with `max_tokens ≤ 512` on the contrast LLM is at risk.
+**Reproducer (against pre-`411cf6c` code):** any MaTTS run on a complex multi-step task with `max_tokens ≤ 512` on the contrast LLM is at risk.
 
-**Suggested fixes (in `src/fleet/memory/matts.py:106-113`):**
-
-1. Bump the default `max_tokens` for the contrast LLM, *or* document a recommended floor (≥ 2 000) in the docstring.
-2. Catch `ValueError` from `parse_json_strict` and either retry with `max_tokens *= 2` or fall back to returning `(states, [])` with a `logger.warning` — MaTTS rollouts themselves succeeded, and distillation should be best-effort, not failure-coupled.
-
-This is a one-paragraph follow-up PR, not a benchmark blocker — flagging because it would have silently degraded a real user's session.
+**Fix applied in `411cf6c`** — `_contrast_distill` now catches truncated/invalid contrast JSON and falls back to returning an empty distilled-items list with a `logger.warning`, so the rollouts (which succeeded) are still returned to the caller. Distillation is now best-effort, decoupled from the success of the rollouts themselves.
 
 ---
 
@@ -269,7 +273,8 @@ export ANTHROPIC_API_KEY=sk-ant-...
 # Main 4-config sweep — ~3 minutes, ~$0.13, well within 30K TPM
 uv run python scripts/run_benchmarks.py
 
-# Optional secondary suite — note: HARD-B may crash on max_tokens; see §5
+# Optional secondary suite — the pre-411cf6c HARD-B crash on the contrast call
+# is now caught (see §5); HARD-B completes end-to-end on current HEAD.
 uv run python scripts/run_hard_benchmarks.py
 ```
 
@@ -289,7 +294,7 @@ In rough order of marginal value:
 3. **Repeated-similar-task workload for ReasoningBank.** Generate N templates of "compute compound interest for $X at Y% for Z years" with different parameters; the bank should retrieve a useful procedural memory and reduce token use, not just accuracy.
 4. **Async vs sync ingestion.** The current run used `async_writeback=False` so we could measure deterministically; production should benchmark whether async writeback hides latency under a real chat session.
 5. **Persistent SQLiteVecStore across sessions.** Measure memory growth, retrieval latency curve, and merge-deduplication effectiveness over a multi-day workload.
-6. **Fix and re-land [§5 max_tokens / fallback for `matts_run`].** Small, high-value safety improvement.
+6. **Re-run HARD-B end-to-end on current HEAD.** The contrast-distill truncation that aborted HARD-B has been fixed in `411cf6c`; a clean re-run would let us replace the partial-data caveat in §4 with a full 15/15 result.
 
 ---
 
