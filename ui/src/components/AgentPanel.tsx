@@ -1,4 +1,6 @@
-import { useFleetStore } from '../store/fleetStore'
+import { useFleetStore, type LogEntry } from '../store/fleetStore'
+
+const EMPTY_LOGS: LogEntry[] = []
 
 const ROLE_COLOR: Record<string, string> = {
   user:      'var(--accent-teal)',
@@ -18,7 +20,7 @@ export function AgentPanel() {
   const selectedNode = useFleetStore((s) => s.selectedNode)
   const nodeState    = useFleetStore((s) => selectedNode ? s.nodes[selectedNode] : null)
   const activeRunId  = useFleetStore((s) => s.activeRunId)
-  const logs         = useFleetStore((s) => activeRunId ? (s.logs[activeRunId] ?? []) : [])
+  const logs         = useFleetStore((s) => activeRunId ? (s.logs[activeRunId] ?? EMPTY_LOGS) : EMPTY_LOGS)
 
   const nodeLogs = selectedNode
     ? logs.filter((l) =>
