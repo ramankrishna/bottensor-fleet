@@ -13,6 +13,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Module-level registry so agents can look up the event bus by run_id
+_EVENT_BUS_REGISTRY: dict[str, "EventBus"] = {}
+
 
 class EventBus:
     def __init__(self) -> None:
@@ -42,6 +45,10 @@ class Scheduler:
 
     async def _run_node(self, name: str, state: GraphState) -> GraphState:
         node = self.graph.nodes[name]
+        # Store event_bus in module-level registry keyed by run_id so agents can emit events
+        run_id = state.metadata.get("run_id", "")
+        _EVENT_BUS_REGISTRY[run_id] = self.event_bus
+        state = merge_metadata(state, {"_current_node": name})
         last_exc: Exception | None = None
         for _ in range(max(node.retries, 1)):
             try:
@@ -91,6 +98,7 @@ class Scheduler:
 
             if len(node_list) == 1:
                 name = node_list[0]
+                await self.event_bus.emit({"type": "node_start", "node": name, "step": steps})
                 state = await self._run_node(name, state)
                 steps += 1
                 await self.backend.save(run_id, state)
@@ -101,6 +109,8 @@ class Scheduler:
                 current = set(self._get_next_nodes(name, state))
             else:
                 # Fan-out: run all concurrently, then merge
+                for name in node_list:
+                    await self.event_bus.emit({"type": "node_start", "node": name, "step": steps})
                 results = await asyncio.gather(*[self._run_node(n, state) for n in node_list])
                 state = self._merge_states(state, list(results))
                 steps += len(node_list)
@@ -123,4 +133,62 @@ class Scheduler:
                 )
                 state = merge_metadata(state, {"terminated_by": "max_steps"})
 
+        await self._run_memory_writebacks(state)
+        _EVENT_BUS_REGISTRY.pop(run_id, None)
         return state
+
+    async def _run_memory_writebacks(self, state: GraphState) -> None:
+        """Fire ``ingest_trajectory`` on every unique memory bank reachable
+        through the graph's agents."""
+        banks: dict[int, Any] = {}
+        for node in self.graph.nodes.values():
+            # Method 1: bound method — node.fn is agent.step
+            owner = getattr(node.fn, "__self__", None)
+            if owner is not None:
+                bank = getattr(owner, "memory_bank", None)
+                if bank is not None:
+                    banks.setdefault(id(bank), bank)
+                continue
+            # Method 2: plain function — scan its closure for Agent objects with memory_bank
+            fn = node.fn
+            for cell_name in ("__globals__", "__closure__"):
+                container = getattr(fn, cell_name, None)
+                if container is None:
+                    continue
+                if cell_name == "__globals__":
+                    vals = container.values()
+                else:
+                    vals = [c.cell_contents for c in container if hasattr(c, "cell_contents")]
+                for obj in vals:
+                    bank = getattr(obj, "memory_bank", None)
+                    if bank is not None:
+                        banks.setdefault(id(bank), bank)
+
+        for bank in banks.values():
+            if getattr(bank, "induction_llm", None) is None:
+                continue
+            if getattr(bank, "judge_llm", None) is None:
+                continue
+            try:
+                coro = bank.ingest_trajectory(
+                    list(state.messages),
+                    state.goal,
+                    outcome=None,
+                )
+            except Exception as exc:
+                logger.warning(f"memory writeback skipped: {exc}")
+                continue
+            if getattr(bank, "async_writeback", True):
+                asyncio.create_task(_safe_await(coro))
+            else:
+                try:
+                    await coro
+                except Exception as exc:
+                    logger.warning(f"memory writeback failed: {exc}")
+
+
+async def _safe_await(coro: Any) -> None:
+    try:
+        await coro
+    except Exception as exc:
+        logger.warning(f"memory writeback failed: {exc}")

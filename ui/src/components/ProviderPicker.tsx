@@ -74,7 +74,9 @@ export function ProviderPicker() {
     setLoading(true)
     fetch('/api/providers')
       .then((r) => r.json())
-      .then((data: string[]) => setProviders(data))
+      .then((data: { providers: string[] } | string[]) => {
+        setProviders(Array.isArray(data) ? data : data.providers ?? [])
+      })
       .catch(() => {/* server not reachable during dev */})
       .finally(() => setLoading(false))
   }, [providers, setProviders])

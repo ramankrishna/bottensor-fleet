@@ -19,7 +19,7 @@ pip install 'bottensor-fleet[search]'
 export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Extras: `[search]` adds web tools, `[redis]` adds Redis checkpointing, `[all]` gets everything.
+Extras: `[search]` adds web tools, `[redis]` adds Redis checkpointing, `[memory]` adds ReasoningBank + MaTTS (SQLite-vec store + MiniLM embedder), `[all]` gets everything.
 
 ## 30-second example
 
@@ -29,7 +29,7 @@ from fleet import Agent, Graph
 from fleet.core.state import GraphState
 from fleet.providers.client import FleetLLM
 
-llm = FleetLLM("claude", "claude-sonnet-4-6")
+llm = FleetLLM("anthropic", "claude-sonnet-4-6")
 researcher = Agent(name="researcher", llm=llm, tools=["web_search", "web_fetch"])
 
 graph = (
@@ -73,6 +73,36 @@ Opens a local dashboard at `http://localhost:8765` with a live DAG view, per-age
 - **Tools and skills:** `@tool` decorator auto-derives JSON schemas from type hints. `@skill` for higher-level capabilities. Web search and fetch built in via the `[search]` extra.
 - **UI in the wheel:** No separate Node install for users. The React + Vite frontend is bundled into the published wheel.
 
+## Memory & self-improving agents
+
+Opt-in **ReasoningBank** ([Ouyang et al., ICLR 2026](https://arxiv.org/abs/2509.25140)) gives any agent a persistent, embedding-indexed memory of past trajectories. Retrieval prepends the top-k relevant memories before each run; an async writeback judges the trajectory and distills 1–3 generalizable lessons that integrate into the bank via merge / link / insert.
+
+**MaTTS (Memory-Aware Test-Time Scaling)** runs the same task `k` times in parallel and contrast-distills higher-quality memories than any single rollout can produce — useful for bootstrapping a new scope or one-shot high-stakes tasks.
+
+```bash
+pip install 'bottensor-fleet[memory]'
+```
+
+```python
+from fleet import Agent, ReasoningBank
+from fleet.providers.client import FleetLLM
+
+llm  = FleetLLM("anthropic", "claude-sonnet-4-6")
+bank = ReasoningBank(judge_llm=llm, induction_llm=llm, scope="research")
+
+researcher = Agent(name="researcher", model="anthropic/claude-sonnet-4-6",
+                   tools=["web_search"], memory_bank=bank, memory_k=5)
+```
+
+Two ready-to-run examples:
+
+```bash
+fleet examples learning_research_team    # planner + 2 researchers + writer, shared bank
+fleet examples matts_solo                # single agent with MaTTS k=3
+```
+
+The dashboard's **Memory** tab (browse / search / edit / export / import) is wired to `/api/memory*`. See [docs/memory.md](docs/memory.md) for the full guide.
+
 ## Comparison
 
 | | bottensor-fleet | LangGraph | CrewAI | AutoGen |
@@ -85,9 +115,9 @@ Opens a local dashboard at `http://localhost:8765` with a live DAG view, per-age
 
 ## Roadmap
 
-- **v0.2** — ReasoningBank ([Ouyang et al., ICLR 2026](https://arxiv.org/abs/2509.25140)): self-evolving agents that learn from successful and failed trajectories. Memory-aware test-time scaling (MaTTS).
-- **v0.3** — MLX embedder, sequential MaTTS, distributed scheduler.
-- **v0.4** — Vector memory backend, cloud deploy templates.
+- **v0.2** ✅ — ReasoningBank + parallel MaTTS shipped. See [docs/memory.md](docs/memory.md).
+- **v0.3** — MLX embedder hardening, sequential MaTTS, distributed scheduler.
+- **v0.4** — Alternate vector backends (Redis / Postgres), cloud deploy templates.
 
 ## Security
 
