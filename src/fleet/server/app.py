@@ -11,7 +11,20 @@ from .routes import router
 from .ws import ws_router
 
 
+def _check_sqlite_vec() -> None:
+    """Emit a visible warning when sqlite-vec is missing — memory will be in-process only."""
+    try:
+        import sqlite_vec  # noqa: F401
+    except ImportError:
+        print(
+            "⚠ sqlite_vec not installed — memory will use InMemoryStore (not persistent). "
+            "Install with: pip install sqlite-vec",
+            flush=True,
+        )
+
+
 def create_app() -> FastAPI:
+    _check_sqlite_vec()
     app = FastAPI(title="bottensor-fleet", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,

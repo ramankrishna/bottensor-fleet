@@ -51,9 +51,11 @@ export function RunControls() {
   const resetNodes   = useFleetStore((s) => s.resetNodes)
   const activeRunId  = useFleetStore((s) => s.activeRunId)
   const runs         = useFleetStore((s) => s.runs)
+  const goal         = useFleetStore((s) => s.goal)
+  const setGoal      = useFleetStore((s) => s.setGoal)
+  const graph        = useFleetStore((s) => s.selectedGraph)
+  const setGraph     = useFleetStore((s) => s.setSelectedGraph)
 
-  const [goal, setGoal]         = useState('')
-  const [graph, setGraph]       = useState('')
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
 

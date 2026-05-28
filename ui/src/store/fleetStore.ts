@@ -60,6 +60,12 @@ export interface FleetStore {
   setKey: (provider: string, key: string) => void
   clearKeys: () => void
 
+  // Run form state (persists across tab switches)
+  goal: string
+  setGoal: (g: string) => void
+  selectedGraph: string
+  setSelectedGraph: (g: string) => void
+
   // Active run
   activeRunId: string | null
   setActiveRunId: (id: string | null) => void
@@ -104,6 +110,11 @@ export const useFleetStore = create<FleetStore>((set, get) => ({
   })),
   clearKeys: () => set({ providerKeys: [] }),
 
+  goal: '',
+  setGoal: (g) => set({ goal: g }),
+  selectedGraph: '',
+  setSelectedGraph: (g) => set({ selectedGraph: g }),
+
   activeRunId: null,
   setActiveRunId: (id) => set({ activeRunId: id }),
 
@@ -131,15 +142,27 @@ export const useFleetStore = create<FleetStore>((set, get) => ({
     const runId = event.run_id ?? 'unknown'
 
     switch (event.type) {
-      case 'node_started':
-        upsertNode(event.node ?? '', { status: 'running' })
+      case 'node_started': {
+        const node = event.node ?? ''
+        upsertNode(node, { status: 'running' })
+        appendLog(runId, {
+          id: nextId(), ts: Date.now(), role: 'system',
+          content: `▶ Node ${node || '(unknown)'} started`,
+        })
         break
-      case 'node_finished':
-        upsertNode(event.node ?? '', {
+      }
+      case 'node_finished': {
+        const node = event.node ?? ''
+        upsertNode(node, {
           status: 'done',
           lastStep: event.step as number | undefined,
         })
+        appendLog(runId, {
+          id: nextId(), ts: Date.now(), role: 'system',
+          content: `■ Node ${node || '(unknown)'} finished`,
+        })
         break
+      }
       case 'tool_called':
         upsertNode(event.node ?? '', { status: 'waiting' })
         appendLog(runId, {
@@ -156,6 +179,18 @@ export const useFleetStore = create<FleetStore>((set, get) => ({
           toolName: event.tool_name as string | undefined,
         })
         break
+      case 'state_updated':
+      case 'message':
+      case 'assistant_message': {
+        const content = String(event.content ?? event.message ?? event.text ?? '').trim()
+        if (content) {
+          appendLog(runId, {
+            id: nextId(), ts: Date.now(), role: 'assistant',
+            content: content.slice(0, 500),
+          })
+        }
+        break
+      }
       case 'run_finished':
         set((s) => {
           const existing = s.runs[runId]
