@@ -144,17 +144,17 @@ Any object that satisfies the `MemoryStore` protocol works. The protocol is `@ru
 
 ## Embedders
 
-The `Embedder` protocol is two methods: `dim: int` and `embed(texts) -> list[list[float]]`. Three are registered by name:
+The `Embedder` protocol is two methods: `dim: int` and `embed(texts) -> list[list[float]]`. v0.2 registers one embedder; MLX and polyrt are reserved for v0.3.
 
-| Name | Class | Requires |
-|---|---|---|
-| `minilm` | `MiniLMEmbedder` | `sentence-transformers` (default install via `[memory]`) — 384-d. |
-| `mlx` | `MLXEmbedder` | `mlx-embeddings` (Apple Silicon). |
-| `polyrt` | `PolyRTEmbedder` | A polyrt backend that exposes an embeddings API. |
+| Name | Class | Requires | Status |
+|---|---|---|---|
+| `minilm` | `MiniLMEmbedder` | `sentence-transformers` (default install via `[memory]`) — 384-d. | ✅ shipping |
+| `mlx` | `MLXEmbedder` | `mlx-embeddings` (Apple Silicon). | 🧪 stub, lands in v0.3 |
+| `polyrt` | `PolyRTEmbedder` | A polyrt backend that exposes an embeddings API. | 🧪 stub, lands in v0.3 |
 
 ```python
 from fleet.memory import get_embedder
-embedder = get_embedder("minilm")  # or "mlx", "polyrt"
+embedder = get_embedder("minilm")
 ```
 
 Register a custom one:

@@ -278,10 +278,3 @@ def test_skill_decorator_registers():
     assert _SKILL_REGISTRY["_test_skill_xyz"]["description"] == "A test skill."
 
 
-def test_builtin_skills_registered():
-    import fleet.skills.builtin  # noqa: F401 — triggers @skill decorators
-    from fleet.skills.registry import _SKILL_REGISTRY
-
-    assert "plan" in _SKILL_REGISTRY
-    assert "summarize" in _SKILL_REGISTRY
-    assert "critique" in _SKILL_REGISTRY

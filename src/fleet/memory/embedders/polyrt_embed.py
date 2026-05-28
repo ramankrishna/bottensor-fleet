@@ -1,12 +1,19 @@
-"""Polyrt-hosted embedder — stub. Wires to polyrt's embeddings API later."""
+"""Polyrt-hosted embedder — stub (coming v0.3).
+
+Will wire to polyrt's embeddings API once the upstream surface stabilizes.
+Not registered yet so callers see a ``KeyError`` from ``get_embedder("polyrt")``
+rather than a runtime failure on first ``embed()``.
+"""
 
 from __future__ import annotations
 
 
 class PolyRTEmbedder:
+    """Stub polyrt-hosted embedder (coming v0.3). Do not use yet — raises NotImplementedError."""
+
     @property
     def dim(self) -> int:
         return 1536
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        raise NotImplementedError("polyrt-hosted embedder will land in a later v0.2 phase")
+        raise NotImplementedError("polyrt-hosted embedder is a stub — coming in v0.3")

@@ -1,17 +1,39 @@
-"""3-node DAG: planner → [researcher_a, researcher_b] → writer.
+"""Research team that learns from past runs (planner → 2 researchers → writer).
 
-Demonstrates parallel fan-out and merge.  The planner decomposes the goal
-into two sub-questions (stored in scratchpad), each researcher handles one
-in parallel, and the writer synthesises both into a final report.
+Each run retrieves memories from a shared ReasoningBank and, on completion,
+writes back distilled lessons. Subsequent runs benefit from prior trajectories
+(e.g., better search strategies, sources to avoid, common pitfalls).
+
+Run me with:
+    fleet run learning_research_team.py --goal "your question here"
+
+Or to scale the writeback contrast:
+    fleet run learning_research_team.py --matts 3 --goal "your question here"
 """
 import asyncio
 
 from fleet import Agent, Graph
-from fleet.core.state import GraphState, append_message, set_scratchpad
 from fleet.agents.agent import AgentMessage
+from fleet.core.state import GraphState, append_message, set_scratchpad
+from fleet.memory import ReasoningBank
+from fleet.providers.client import FleetLLM
 
 
-# ── Nodes ──────────────────────────────────────────────────────────────────────
+# ── Shared bank ───────────────────────────────────────────────────────────────
+# One bank, shared across every agent. Persisted to the default SQLite store so
+# memories survive across `fleet run` invocations.
+
+_judge      = FleetLLM("anthropic", "claude-sonnet-4-6")
+_inducer    = FleetLLM("anthropic", "claude-sonnet-4-6")
+
+bank = ReasoningBank(
+    scope="research_team",
+    judge_llm=_judge,
+    induction_llm=_inducer,
+)
+
+
+# ── Agents (memory-aware) ─────────────────────────────────────────────────────
 
 planner = Agent(
     name="planner",
@@ -23,6 +45,7 @@ planner = Agent(
     model="anthropic/claude-sonnet-4-6",
     tools=[],
     max_iters=1,
+    memory_bank=bank,
 )
 
 researcher_a = Agent(
@@ -30,6 +53,7 @@ researcher_a = Agent(
     goal="Answer the sub-question stored in scratchpad['q1'] thoroughly, with sources.",
     model="anthropic/claude-sonnet-4-6",
     tools=["web_search", "web_fetch"],
+    memory_bank=bank,
 )
 
 researcher_b = Agent(
@@ -37,6 +61,7 @@ researcher_b = Agent(
     goal="Answer the sub-question stored in scratchpad['q2'] thoroughly, with sources.",
     model="anthropic/claude-sonnet-4-6",
     tools=["web_search", "web_fetch"],
+    memory_bank=bank,
 )
 
 writer = Agent(
@@ -48,10 +73,11 @@ writer = Agent(
     model="anthropic/claude-sonnet-4-6",
     tools=[],
     max_iters=1,
+    memory_bank=bank,
 )
 
 
-# ── Planner wrapper: parse JSON and stash sub-questions in scratchpad ──────────
+# ── Node wrappers ─────────────────────────────────────────────────────────────
 
 async def plan_step(state: GraphState) -> GraphState:
     import json
@@ -63,27 +89,11 @@ async def plan_step(state: GraphState) -> GraphState:
         state = set_scratchpad(state, "q1", qs.get("q1", ""))
         state = set_scratchpad(state, "q2", qs.get("q2", ""))
     except (ValueError, AttributeError):
-        # If the model didn't return clean JSON, fall back gracefully.
         goal = state.goal
         state = set_scratchpad(state, "q1", f"Part 1: {goal}")
         state = set_scratchpad(state, "q2", f"Part 2: {goal}")
     return state
 
-
-# ── Writer wrapper: inject researcher answers into context first ───────────────
-
-async def write_step(state: GraphState) -> GraphState:
-    a_ans = state.scratchpad.get("researcher_a_answer", "(no answer)")
-    b_ans = state.scratchpad.get("researcher_b_answer", "(no answer)")
-    brief = (
-        f"[Researcher A answered]: {a_ans[:800]}\n\n"
-        f"[Researcher B answered]: {b_ans[:800]}"
-    )
-    state = append_message(state, AgentMessage(role="user", content=brief))
-    return await writer.step(state)
-
-
-# ── Researcher wrappers: stash their final answer in scratchpad ────────────────
 
 async def research_a_step(state: GraphState) -> GraphState:
     state = await researcher_a.step(state)
@@ -97,10 +107,21 @@ async def research_b_step(state: GraphState) -> GraphState:
     return set_scratchpad(state, "researcher_b_answer", answer)
 
 
+async def write_step(state: GraphState) -> GraphState:
+    a_ans = state.scratchpad.get("researcher_a_answer", "(no answer)")
+    b_ans = state.scratchpad.get("researcher_b_answer", "(no answer)")
+    brief = (
+        f"[Researcher A answered]: {a_ans[:800]}\n\n"
+        f"[Researcher B answered]: {b_ans[:800]}"
+    )
+    state = append_message(state, AgentMessage(role="user", content=brief))
+    return await writer.step(state)
+
+
 # ── Graph ─────────────────────────────────────────────────────────────────────
 
 graph = (
-    Graph("research_team")
+    Graph("learning_research_team")
     .add_node("planner",      plan_step)
     .add_node("researcher_a", research_a_step)
     .add_node("researcher_b", research_b_step)
@@ -114,7 +135,16 @@ graph = (
     .compile()
 )
 
+
 if __name__ == "__main__":
-    state = GraphState(goal="How is AI being used in climate science, and what are the main risks?")
+    state = GraphState(
+        goal="How is AI being used in climate science, and what are the main risks?"
+    )
     final = asyncio.run(graph.run(state))
     print(final.messages[-1].content)
+
+    # After the run, distilled memories live in the shared bank.
+    items = asyncio.run(bank.list())
+    print(f"\n[bank] {len(items)} memory items in scope={bank.scope!r}")
+    for it in items[-5:]:
+        print(f"  • {it.title}  ({it.source}, conf={it.confidence:.2f})")

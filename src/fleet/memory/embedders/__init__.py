@@ -2,7 +2,8 @@
 
 Embedders turn signature_text() into a fixed-dimension vector that backs
 similarity search. Implementations are registered by name so callers can
-swap MiniLM, MLX, or polyrt-hosted embeddings without code changes.
+swap embedding backends without code changes. Only ``minilm`` is registered
+in v0.2; ``mlx`` and ``polyrt`` stubs are reserved for v0.3.
 """
 
 from __future__ import annotations
@@ -43,21 +44,11 @@ def available() -> list[str]:
 
 
 # Built-in registrations — factories are lazy so optional deps aren't required at import.
+# MLX and polyrt embedders are stubs reserved for v0.3 and are intentionally not
+# registered here; the modules remain on disk as placeholders.
 def _minilm_factory(**kwargs: object) -> Embedder:
     from fleet.memory.embedders.minilm import MiniLMEmbedder
     return MiniLMEmbedder(**kwargs)  # type: ignore[arg-type]
 
 
-def _mlx_factory(**kwargs: object) -> Embedder:
-    from fleet.memory.embedders.mlx_embed import MLXEmbedder
-    return MLXEmbedder(**kwargs)  # type: ignore[arg-type]
-
-
-def _polyrt_factory(**kwargs: object) -> Embedder:
-    from fleet.memory.embedders.polyrt_embed import PolyRTEmbedder
-    return PolyRTEmbedder(**kwargs)  # type: ignore[arg-type]
-
-
 register("minilm", _minilm_factory)
-register("mlx", _mlx_factory)
-register("polyrt", _polyrt_factory)
