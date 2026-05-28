@@ -240,7 +240,7 @@ def ui(port: int = typer.Option(8765, "--port", "-p", help="Listen port")) -> No
 
     url = f"http://localhost:{port}"
     console.print(f"[bold green]Fleet UI[/bold green] → {url}")
-    _key_envs = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY")
+    _key_envs = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY")
     _found = [v for v in _key_envs if os.environ.get(v)]
     if _found:
         console.print(f"[dim]Provider keys detected in env: {', '.join(_found)}[/dim]")

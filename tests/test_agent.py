@@ -3,10 +3,8 @@ from __future__ import annotations
 
 from typing import Any
 
-import pytest
-
 from fleet.agents.agent import Agent
-from fleet.agents.memory import ScratchpadMemory, VectorMemory
+from fleet.agents.memory import ScratchpadMemory
 from fleet.agents.planner import Planner
 from fleet.core.messages import AgentMessage, ToolCall
 from fleet.core.state import GraphState
@@ -246,22 +244,6 @@ def test_scratchpad_set_returns_new_state():
     new_state = mem.set("a", 1)
     assert new_state is not state
     assert state.scratchpad.get("n") is None  # original unchanged
-
-
-# ---------------------------------------------------------------------------
-# VectorMemory (stub)
-# ---------------------------------------------------------------------------
-
-async def test_vector_memory_add_raises():
-    vm = VectorMemory()
-    with pytest.raises(NotImplementedError):
-        await vm.add("some text")
-
-
-async def test_vector_memory_search_raises():
-    vm = VectorMemory()
-    with pytest.raises(NotImplementedError):
-        await vm.search("query")
 
 
 # ---------------------------------------------------------------------------

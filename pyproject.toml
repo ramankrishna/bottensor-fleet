@@ -58,9 +58,9 @@ exclude = [".claude/"]
 [tool.hatch.build.targets.wheel]
 packages = ["src/fleet"]
 exclude = [".claude/"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"ui/dist" = "fleet/static"
+# Static UI assets are tracked at src/fleet/static (populated from `ui/dist`
+# via `npm run build && cp -R ui/dist/. src/fleet/static/`), so no
+# wheel-time force-include is needed.
 
 [tool.ruff]
 line-length = 100

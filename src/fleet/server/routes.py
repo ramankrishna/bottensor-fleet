@@ -207,8 +207,7 @@ async def list_graphs() -> dict[str, Any]:
     return {"graphs": files, "directory": graphs_dir}
 
 
-# TODO: replace with dynamic polyrt registry once entry-points are populated
-_KNOWN_BACKENDS = ["anthropic", "openai", "mlx", "ollama"]
+_KNOWN_BACKENDS = ["anthropic", "openai"]
 
 
 @router.get("/providers")

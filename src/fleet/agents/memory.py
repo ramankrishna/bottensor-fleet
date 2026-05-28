@@ -26,16 +26,3 @@ class ScratchpadMemory:
         return dict(self._state.scratchpad.get(self._node, {}))
 
 
-class VectorMemory:
-    """Stub vector memory — requires a vector store backend (not yet wired)."""
-
-    async def add(self, text: str, metadata: dict[str, Any] | None = None) -> None:
-        raise NotImplementedError(
-            "VectorMemory requires a vector store backend. "
-            "Pass a configured backend via VectorMemory(backend=...)."
-        )
-
-    async def search(self, query: str, k: int = 5) -> list[str]:
-        raise NotImplementedError(
-            "VectorMemory requires a vector store backend."
-        )

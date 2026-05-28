@@ -6,8 +6,6 @@
 [![Python](https://img.shields.io/pypi/pyversions/bottensor-fleet.svg)](https://pypi.org/project/bottensor-fleet/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-<!-- demo.gif placeholder — will be added after capture run -->
-
 ## Why
 
 Most multi-agent frameworks are heavy and locked to one ecosystem. LangGraph is tied to LangChain. CrewAI is opinionated about roles. AutoGen is conversation-first. `bottensor-fleet` is a small, graph-native runtime that runs anywhere Python runs, lets you bring your own provider key, and ships with a real UI in the wheel.
@@ -49,11 +47,11 @@ print(state.messages[-1].content)
 Export your provider key(s) in the same shell, then launch:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...   # and/or OPENAI_API_KEY, GEMINI_API_KEY, ...
+export ANTHROPIC_API_KEY=sk-ant-...   # and/or OPENAI_API_KEY
 fleet ui
 ```
 
-Opens a local dashboard at `http://localhost:8765` with a live DAG view, per-agent logs, token spend, and run history.
+Opens a local dashboard at `http://localhost:8765` with a node activity view, per-agent logs, and the Memory tab (browse / search / edit / export / import).
 
 The UI never accepts API keys through forms — credentials are read from the environment of the `fleet ui` process. Restart `fleet ui` after changing an exported key.
 
@@ -121,12 +119,12 @@ The dashboard's **Memory** tab (browse / search / edit / export / import) is wir
 ## Roadmap
 
 - **v0.2** ✅ — ReasoningBank + parallel MaTTS shipped. See [docs/memory.md](docs/memory.md).
-- **v0.3** — MLX embedder hardening, sequential MaTTS, distributed scheduler.
+- **v0.3** — Docker sandbox for `python_exec`, MLX embedder, polyrt-hosted embedder, sequential MaTTS, distributed scheduler.
 - **v0.4** — Alternate vector backends (Redis / Postgres), cloud deploy templates.
 
 ## Security
 
-The `python_exec` tool is unsandboxed in v0.1.x. Do not run untrusted graphs. A Docker sandbox lands in v0.2.
+The `python_exec` tool is unsandboxed. Do not run untrusted graphs. A Docker sandbox is planned for v0.3.
 
 ## License
 

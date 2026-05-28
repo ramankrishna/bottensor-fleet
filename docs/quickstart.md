@@ -52,8 +52,8 @@ ANTHROPIC_API_KEY=sk-ant-… python examples/solo_agent.py
 ```
 
 > **Tip:** fleet uses [polyrt](https://github.com/bottensor/polyrt) under the hood.
-> Set `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, etc. — whichever
-> backend you pass in the `model` field.
+> Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` — whichever backend you pass in
+> the `model` field.
 
 ---
 
@@ -112,11 +112,14 @@ that node as the terminal node (equivalent to reaching the exit).
 fleet ui
 ```
 
-Opens `http://localhost:5173` with:
+Opens `http://localhost:8765` with:
 
-- **Left rail** — Run controls (goal, graph selector, Start / Pause / Resume / Kill) + API key manager
-- **Center** — Live ReactFlow graph; nodes glow teal (running) or gold (waiting on a tool call)
-- **Right rail** — Live message / tool log for the selected agent
+- **Left rail** — Run controls (goal, graph selector, Start / Pause / Resume / Kill)
+- **Center** — ReactFlow graph; nodes show running / waiting state
+- **Right rail** — Message / tool log for the selected agent
+
+Provider keys are read from the environment of the `fleet ui` process — the
+UI does not accept API keys through forms.
 
 Start a run from the UI, or use the REST API directly:
 
@@ -150,7 +153,7 @@ fleet replay <run-id>     replay events from a finished run
 | `python_exec` | Execute Python in a subprocess ⚠️ unsandboxed in v0.1 |
 | `read_file` | Read a file from `FLEET_WORKSPACE` |
 | `write_file` | Write a file to `FLEET_WORKSPACE` |
-| `list_files` | List files under `FLEET_WORKSPACE` |
+| `list_dir` | List entries under a path inside `FLEET_WORKSPACE` |
 
 Pass tool names as strings to `Agent(tools=[...])`. All tools are registered
 via the `@tool` decorator and discoverable with `fleet.tools.get_tool(name)`.
@@ -173,22 +176,22 @@ agent = Agent(name="counter", tools=["count_words"], ...)
 
 ---
 
-## Custom skills (reusable agent templates)
+## Custom skills (reusable graph-state transforms)
+
+A skill is an async `GraphState -> GraphState` function registered by name.
+Drop one in your project and reference it from a node.
 
 ```python
-from fleet import skill
+from fleet.core.state import GraphState, append_message
+from fleet.core.messages import AgentMessage
+from fleet.skills import skill, get_skill
 
-@skill("summariser")
-def make_summariser(model: str = "anthropic/claude-haiku-4-5") -> Agent:
-    return Agent(
-        name="summariser",
-        goal="Summarise the provided text concisely.",
-        model=model,
-        tools=[],
-    )
+@skill
+async def echo_goal(state: GraphState) -> GraphState:
+    """Append the current goal back as an assistant message."""
+    return append_message(state, AgentMessage(role="assistant", content=state.goal))
 
-from fleet.skills import get_skill
-agent = get_skill("summariser")()
+entry = get_skill("echo_goal")
 ```
 
 ---
@@ -201,7 +204,7 @@ from fleet.core.checkpoint import SQLiteCheckpoint
 g = (
     Graph("solo")
     .add_node(...)
-    .compile(backend=SQLiteCheckpoint())   # persists to ~/.fleet/<run_id>.db
+    .compile(backend=SQLiteCheckpoint())   # persists to ~/.fleet/checkpoints.db
 )
 ```
 
@@ -218,10 +221,9 @@ g = Graph(...).compile(backend=RedisCheckpoint("redis://localhost:6379"))
 
 | Variable | Default | Description |
 |---|---|---|
-| `FLEET_WORKSPACE` | `./workspace` | Root for file tool operations |
+| `FLEET_WORKSPACE` | `~/.fleet/workspace` | Root for file tool operations |
 | `ANTHROPIC_API_KEY` | — | Anthropic backend key |
 | `OPENAI_API_KEY` | — | OpenAI backend key |
-| `GEMINI_API_KEY` | — | Google Gemini key |
 
 Export the relevant key(s) **before** launching `fleet ui` — the UI reads
 credentials from the server process's environment and does not accept keys
