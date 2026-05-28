@@ -31,12 +31,6 @@ export interface LogEntry {
   isError?: boolean
 }
 
-// ── provider keys ────────────────────────────────────────────────────────────
-export interface ProviderKey {
-  provider: string
-  key: string
-}
-
 // ── run meta ─────────────────────────────────────────────────────────────────
 export interface RunMeta {
   runId: string
@@ -55,16 +49,13 @@ export interface FleetStore {
   graphs: string[]
   setGraphs: (g: string[]) => void
 
-  // Provider keys (in-memory only, never persisted)
-  providerKeys: ProviderKey[]
-  setKey: (provider: string, key: string) => void
-  clearKeys: () => void
-
   // Run form state (persists across tab switches)
   goal: string
   setGoal: (g: string) => void
   selectedGraph: string
   setSelectedGraph: (g: string) => void
+  selectedBackend: string
+  setSelectedBackend: (b: string) => void
 
   // Active run
   activeRunId: string | null
@@ -101,19 +92,12 @@ export const useFleetStore = create<FleetStore>((set, get) => ({
   graphs: [],
   setGraphs: (g) => set({ graphs: g }),
 
-  providerKeys: [],
-  setKey: (provider, key) => set((s) => ({
-    providerKeys: [
-      ...s.providerKeys.filter((k) => k.provider !== provider),
-      { provider, key },
-    ],
-  })),
-  clearKeys: () => set({ providerKeys: [] }),
-
   goal: '',
   setGoal: (g) => set({ goal: g }),
   selectedGraph: '',
   setSelectedGraph: (g) => set({ selectedGraph: g }),
+  selectedBackend: 'anthropic',
+  setSelectedBackend: (b) => set({ selectedBackend: b }),
 
   activeRunId: null,
   setActiveRunId: (id) => set({ activeRunId: id }),

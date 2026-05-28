@@ -222,3 +222,12 @@ g = Graph(...).compile(backend=RedisCheckpoint("redis://localhost:6379"))
 | `ANTHROPIC_API_KEY` | — | Anthropic backend key |
 | `OPENAI_API_KEY` | — | OpenAI backend key |
 | `GEMINI_API_KEY` | — | Google Gemini key |
+
+Export the relevant key(s) **before** launching `fleet ui` — the UI reads
+credentials from the server process's environment and does not accept keys
+through forms.
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+fleet ui
+```

@@ -46,11 +46,16 @@ print(state.messages[-1].content)
 
 ## UI
 
+Export your provider key(s) in the same shell, then launch:
+
 ```bash
+export ANTHROPIC_API_KEY=sk-ant-...   # and/or OPENAI_API_KEY, GEMINI_API_KEY, ...
 fleet ui
 ```
 
 Opens a local dashboard at `http://localhost:8765` with a live DAG view, per-agent logs, token spend, and run history.
+
+The UI never accepts API keys through forms — credentials are read from the environment of the `fleet ui` process. Restart `fleet ui` after changing an exported key.
 
 ## CLI
 

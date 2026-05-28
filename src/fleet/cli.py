@@ -219,7 +219,17 @@ def run(
 
 @app.command()
 def ui(port: int = typer.Option(8765, "--port", "-p", help="Listen port")) -> None:
-    """Launch the Fleet API server and open the browser UI."""
+    """Launch the Fleet API server and open the browser UI.
+
+    API keys are read from the environment of this process. Export the
+    relevant variables before running, e.g.::
+
+        export ANTHROPIC_API_KEY=sk-ant-...
+        fleet ui
+
+    The UI does not accept keys through forms.
+    """
+    import os
     import threading
     import time
     import webbrowser
@@ -230,6 +240,15 @@ def ui(port: int = typer.Option(8765, "--port", "-p", help="Listen port")) -> No
 
     url = f"http://localhost:{port}"
     console.print(f"[bold green]Fleet UI[/bold green] → {url}")
+    _key_envs = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY")
+    _found = [v for v in _key_envs if os.environ.get(v)]
+    if _found:
+        console.print(f"[dim]Provider keys detected in env: {', '.join(_found)}[/dim]")
+    else:
+        console.print(
+            "[yellow]No provider key detected in env.[/yellow] "
+            "Export e.g. [bold]ANTHROPIC_API_KEY[/bold] before starting a run."
+        )
     console.print("Press [bold]Ctrl-C[/bold] to stop.\n")
 
     def _open_browser() -> None:
