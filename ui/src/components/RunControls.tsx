@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useFleetStore } from '../store/fleetStore'
 
 type BtnVariant = 'teal' | 'gold' | 'danger' | 'muted'
@@ -45,7 +45,8 @@ function Btn({
 export function RunControls() {
   const graphs       = useFleetStore((s) => s.graphs)
   const setGraphs    = useFleetStore((s) => s.setGraphs)
-  const providerKeys = useFleetStore((s) => s.providerKeys)
+  const providers    = useFleetStore((s) => s.providers)
+  const setProviders = useFleetStore((s) => s.setProviders)
   const setActiveRunId = useFleetStore((s) => s.setActiveRunId)
   const upsertRun    = useFleetStore((s) => s.upsertRun)
   const resetNodes   = useFleetStore((s) => s.resetNodes)
@@ -55,6 +56,19 @@ export function RunControls() {
   const setGoal      = useFleetStore((s) => s.setGoal)
   const graph        = useFleetStore((s) => s.selectedGraph)
   const setGraph     = useFleetStore((s) => s.setSelectedGraph)
+  const backend      = useFleetStore((s) => s.selectedBackend)
+  const setBackend   = useFleetStore((s) => s.setSelectedBackend)
+
+  useEffect(() => {
+    if (providers.length > 0) return
+    fetch('/api/providers')
+      .then((r) => r.json())
+      .then((data: { providers: string[] } | string[]) => {
+        const list = Array.isArray(data) ? data : data.providers ?? []
+        setProviders(list)
+      })
+      .catch(() => { /* server not reachable */ })
+  }, [providers, setProviders])
 
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
@@ -82,7 +96,6 @@ export function RunControls() {
     setLoading(true)
     resetNodes()
     try {
-      const backend = providerKeys[0]?.provider ?? 'anthropic'
       const r = await fetch('/api/runs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -163,6 +176,39 @@ export function RunControls() {
         <option value="">-- select graph --</option>
         {graphs.map((g) => <option key={g} value={g}>{g}</option>)}
       </select>
+
+      {/* Backend selector */}
+      <select
+        value={backend}
+        onChange={(e) => setBackend(e.target.value)}
+        style={{
+          background: 'var(--bg-base)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          color: 'var(--text-primary)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 12,
+          padding: '6px 8px',
+          width: '100%',
+          outline: 'none',
+        }}
+        title="API keys are read from environment variables (e.g. ANTHROPIC_API_KEY). Set them before launching `fleet ui`."
+      >
+        {(providers.length > 0 ? providers : [backend]).map((p) => (
+          <option key={p} value={p}>{p}</option>
+        ))}
+      </select>
+      <p
+        style={{
+          margin: 0,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          color: 'var(--text-muted)',
+          lineHeight: 1.4,
+        }}
+      >
+        Keys read from env (e.g. <code>ANTHROPIC_API_KEY</code>). Export before launching.
+      </p>
 
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: 6 }}>

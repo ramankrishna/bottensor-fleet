@@ -3,7 +3,6 @@ import { useFleetStore } from './store/fleetStore'
 import { useFleetWS } from './hooks/useFleetWS'
 import { GraphCanvas } from './components/GraphCanvas'
 import { AgentPanel } from './components/AgentPanel'
-import { ProviderPicker } from './components/ProviderPicker'
 import { RunControls } from './components/RunControls'
 import { MemoryTab } from './components/MemoryTab'
 
@@ -99,9 +98,6 @@ export default function App() {
             }}
           >
             <RunControls />
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-              <ProviderPicker />
-            </div>
           </aside>
 
           {/* ── Center canvas ────────────────────────────────────────────────── */}
