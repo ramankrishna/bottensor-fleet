@@ -218,12 +218,14 @@ async def kill_run(run_id: str) -> dict[str, str]:
 
 @router.get("/graphs")
 async def list_graphs() -> dict[str, Any]:
-    """List .py graph files in ./graphs/."""
+    """List .py graph files in ./graphs/ as paths relative to CWD."""
     graphs_dir = "graphs"
     if not os.path.isdir(graphs_dir):
         return {"graphs": [], "directory": graphs_dir}
     files = sorted(
-        f for f in os.listdir(graphs_dir) if f.endswith(".py") and not f.startswith("_")
+        os.path.join(graphs_dir, f)
+        for f in os.listdir(graphs_dir)
+        if f.endswith(".py") and not f.startswith("_")
     )
     return {"graphs": files, "directory": graphs_dir}
 
