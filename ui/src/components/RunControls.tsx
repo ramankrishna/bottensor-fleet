@@ -62,9 +62,10 @@ export function RunControls() {
     if (graphs.length > 0) return
     try {
       const r = await fetch('/api/graphs')
-      const data: string[] = await r.json()
-      setGraphs(data)
-      if (data.length > 0 && !graph) setGraph(data[0])
+      const data = await r.json()
+      const list: string[] = Array.isArray(data) ? data : data.graphs ?? []
+      setGraphs(list)
+      if (list.length > 0 && !graph) setGraph(list[0])
     } catch { /* server down */ }
   }
 

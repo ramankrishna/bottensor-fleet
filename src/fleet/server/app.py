@@ -23,7 +23,22 @@ def create_app() -> FastAPI:
     app.include_router(router, prefix="/api")
     app.include_router(memory_router, prefix="/api")
     app.include_router(ws_router)
-    static_dir = Path(__file__).parent.parent / "static"
-    if static_dir.exists():
+    static_dir = _find_static_dir()
+    if static_dir is not None:
         app.mount("/", StaticFiles(directory=static_dir, html=True), name="ui")
     return app
+
+
+def _find_static_dir() -> Path | None:
+    """Locate the built UI assets.
+
+    Wheel installs ship them at ``src/fleet/static`` (see pyproject force-include).
+    For editable / source checkouts, fall back to ``ui/dist`` at the repo root.
+    """
+    packaged = Path(__file__).parent.parent / "static"
+    if packaged.exists():
+        return packaged
+    repo_dist = Path(__file__).resolve().parents[3] / "ui" / "dist"
+    if repo_dist.exists():
+        return repo_dist
+    return None
