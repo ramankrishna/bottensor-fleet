@@ -25,7 +25,7 @@ def _check_sqlite_vec() -> None:
 
 def create_app() -> FastAPI:
     _check_sqlite_vec()
-    app = FastAPI(title="bottensor-fleet", version="0.2.0")
+    app = FastAPI(title="bottensor-fleet", version="0.3.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173"],
