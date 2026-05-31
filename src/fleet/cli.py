@@ -231,6 +231,39 @@ def run(
 
 
 # ---------------------------------------------------------------------------
+# fleet export <graph.json> -o <graph.py>
+# ---------------------------------------------------------------------------
+
+@app.command("export")
+def export_(
+    graph_file: str = typer.Argument(..., help="JSON graph spec to export"),
+    out: Path = typer.Option(..., "--out", "-o", help="Destination .py file"),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Overwrite the destination if it exists"
+    ),
+) -> None:
+    """Render a JSON graph spec as a runnable Python source file."""
+    import json
+
+    from fleet.graphspec import GraphSpec, spec_to_python
+
+    if not graph_file.endswith(".json"):
+        typer.echo("fleet export only accepts .json graph specs.", err=True)
+        raise typer.Exit(1)
+
+    raw = json.loads(Path(graph_file).read_text(encoding="utf-8"))
+    spec = GraphSpec.model_validate(raw)
+    source = spec_to_python(spec)
+
+    if out.exists() and not force:
+        typer.echo(f"Refusing to overwrite existing file: {out} (use --force)", err=True)
+        raise typer.Exit(1)
+
+    out.write_text(source, encoding="utf-8")
+    console.print(f"[green]Exported[/green] {graph_file} → {out}")
+
+
+# ---------------------------------------------------------------------------
 # fleet ui [--port 8765]
 # ---------------------------------------------------------------------------
 

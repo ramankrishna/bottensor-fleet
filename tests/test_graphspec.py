@@ -17,6 +17,7 @@ from fleet.graphspec import (
     get_condition,
     load_graph_spec,
     register_condition,
+    spec_to_python,
 )
 from fleet.graphspec.conditions import register_parametric_condition
 
@@ -313,6 +314,142 @@ async def test_load_and_run_with_conditional_edge(monkeypatch):
     assert "planner" in visited
     assert "writer" in visited
     assert "skipped" not in visited
+
+
+# ---------------------------------------------------------------------------
+# CLI: `fleet run graph.json` accepts JSON specs
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# export: spec → Python source
+# ---------------------------------------------------------------------------
+
+def _exec_generated_python(source: str, tmp_path) -> None:
+    """Write ``source`` to a temp file and exec it in a subprocess.
+
+    A FleetLLM stub is preinjected (via sitecustomize) so the generated
+    code constructs without API keys.
+    """
+    import subprocess
+    import sys
+
+    # sitecustomize that runs at interpreter startup, before the user file is
+    # loaded — patches FleetLLM.complete to a no-network stub.
+    stub = (
+        "import fleet.providers.client as _c\n"
+        "async def _fake(self, messages, tools=None):\n"
+        "    from fleet.core.messages import AgentMessage\n"
+        "    return AgentMessage(role='assistant', content='stub')\n"
+        "_c.FleetLLM.complete = _fake\n"
+    )
+    site_dir = tmp_path / "site"
+    site_dir.mkdir()
+    (site_dir / "sitecustomize.py").write_text(stub)
+
+    target = tmp_path / "generated.py"
+    target.write_text(source)
+
+    env = {
+        **__import__("os").environ,
+        "ANTHROPIC_API_KEY": "dummy-for-build",
+        "PYTHONPATH": str(site_dir),
+    }
+    r = subprocess.run(
+        [sys.executable, str(target)],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=60,
+    )
+    assert r.returncode == 0, (
+        f"generated python failed.\nstdout:\n{r.stdout}\nstderr:\n{r.stderr}"
+    )
+
+
+def test_spec_to_python_simple_renders_and_runs(tmp_path):
+    raw = _minimal_spec_dict()
+    spec = GraphSpec.model_validate(raw)
+
+    source = spec_to_python(spec)
+
+    # sanity checks on the rendered code
+    assert "from fleet import Agent, Graph" in source
+    assert "FleetLLM(backend='anthropic'" in source
+    assert ".compile()" in source
+    assert "graph = (" in source
+    assert "if __name__" in source
+
+    # exec in a subprocess with a stubbed LLM
+    _exec_generated_python(source, tmp_path)
+
+
+def test_spec_to_python_with_conditions_renders_and_runs(tmp_path):
+    raw = _minimal_spec_dict()
+    raw["edges"][0]["cond"] = "always"
+
+    spec = GraphSpec.model_validate(raw)
+    source = spec_to_python(spec)
+
+    assert "__cond('always')" in source
+    _exec_generated_python(source, tmp_path)
+
+
+def test_spec_to_python_is_ruff_clean(tmp_path):
+    """Generated source must pass `ruff check` cleanly."""
+    import subprocess
+
+    raw = _minimal_spec_dict()
+    # also exercise the conditional branch
+    raw["edges"][0]["cond"] = "always"
+
+    spec = GraphSpec.model_validate(raw)
+    source = spec_to_python(spec)
+
+    p = tmp_path / "out.py"
+    p.write_text(source)
+    r = subprocess.run(
+        ["ruff", "check", str(p)],
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 0, f"ruff failed:\n{r.stdout}\n{r.stderr}"
+
+
+def test_cli_export_writes_python_file(tmp_path):
+    raw = _minimal_spec_dict()
+    spec_path = tmp_path / "g.json"
+    spec_path.write_text(json.dumps(raw))
+
+    out_path = tmp_path / "g.py"
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["export", str(spec_path), "-o", str(out_path)]
+    )
+    assert result.exit_code == 0, result.output
+    assert out_path.exists()
+    assert "graph = (" in out_path.read_text()
+
+
+def test_cli_export_refuses_overwrite_without_force(tmp_path):
+    raw = _minimal_spec_dict()
+    spec_path = tmp_path / "g.json"
+    spec_path.write_text(json.dumps(raw))
+    out_path = tmp_path / "g.py"
+    out_path.write_text("# already here")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["export", str(spec_path), "-o", str(out_path)]
+    )
+    assert result.exit_code == 1
+    assert "Refusing to overwrite" in result.output
+
+    # --force succeeds
+    result2 = runner.invoke(
+        app, ["export", str(spec_path), "-o", str(out_path), "--force"]
+    )
+    assert result2.exit_code == 0, result2.output
+    assert "graph = (" in out_path.read_text()
 
 
 # ---------------------------------------------------------------------------

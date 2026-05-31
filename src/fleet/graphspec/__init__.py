@@ -24,6 +24,7 @@ from fleet.graphspec.conditions import (
     register_condition,
 )
 from fleet.graphspec.loader import load_graph_spec
+from fleet.graphspec.export import spec_to_python
 
 __all__ = [
     "AgentSpec",
@@ -35,4 +36,5 @@ __all__ = [
     "get_condition",
     "register_condition",
     "load_graph_spec",
+    "spec_to_python",
 ]
