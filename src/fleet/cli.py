@@ -372,7 +372,8 @@ def examples(
     examples_dir = files("fleet.examples")
     available = sorted(
         p.name for p in examples_dir.iterdir()
-        if p.name.endswith(".py") and p.name != "__init__.py"
+        if (p.name.endswith(".py") or p.name.endswith(".json"))
+        and p.name != "__init__.py"
     )
 
     if name is None:
@@ -382,8 +383,13 @@ def examples(
         typer.echo("\nExtract with: fleet examples <name>")
         return
 
-    if not name.endswith(".py"):
-        name = f"{name}.py"
+    # Accept the bare stem; default to .py for back-compat, fall through to
+    # .json if only that variant exists.
+    if not (name.endswith(".py") or name.endswith(".json")):
+        if f"{name}.py" in available:
+            name = f"{name}.py"
+        elif f"{name}.json" in available:
+            name = f"{name}.json"
 
     if name not in available:
         typer.echo(f"Unknown example: {name}", err=True)

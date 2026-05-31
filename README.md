@@ -51,16 +51,37 @@ export ANTHROPIC_API_KEY=sk-ant-...   # and/or OPENAI_API_KEY
 fleet ui
 ```
 
-Opens a local dashboard at `http://localhost:8765` with a node activity view, per-agent logs, and the Memory tab (browse / search / edit / export / import).
+Opens a local dashboard at `http://localhost:8765` with a node activity view, per-agent logs, the **Memory** tab (browse / search / edit / export / import), and the **Builder** tab (drag-and-drop graph editor — see below).
 
 The UI never accepts API keys through forms — credentials are read from the environment of the `fleet ui` process. Restart `fleet ui` after changing an exported key.
+
+## Visual builder (v0.3)
+
+The Builder tab is a drag-and-drop editor for multi-agent graphs. You wire up agents on a canvas, run the graph live, and export the result as JSON or as a runnable Python file. The JSON format (`GraphSpec`) is a first-class graph format the CLI accepts directly:
+
+```bash
+fleet run graph.json --goal "How is AI being used in climate science?"
+fleet export graph.json -o graph.py
+```
+
+```python
+from fleet.graphspec import GraphSpec, load_graph_spec, spec_to_python
+import json
+
+cg = load_graph_spec("graph.json")                       # → runnable CompiledGraph
+spec = GraphSpec.model_validate(json.load(open("graph.json")))
+source = spec_to_python(spec)                            # → runnable Python source
+```
+
+Conditions are whitelist-only (no `eval`), tool names must already be registered, and `base_url` is restricted by an SSRF guard that blocks cloud-metadata endpoints while allowing localhost for local vLLM / Ollama. See [docs/visual-builder.md](docs/visual-builder.md) for the full guide and the GraphSpec field reference, and `examples/research_team.json` for a reference spec.
 
 ## CLI
 
 | Command | What it does |
 |---|---|
 | `fleet new <name>` | Scaffold a new graph |
-| `fleet run <graph.py>` | Run a graph from a file |
+| `fleet run <graph.py\|graph.json>` | Run a graph from a Python file or a JSON spec |
+| `fleet export <graph.json> -o <graph.py>` | Render a JSON spec as a runnable Python file |
 | `fleet replay <run_id>` | Re-run a past graph from its saved source path |
 | `fleet examples [name]` | List bundled examples or extract one to the current directory |
 | `fleet ui` | Launch the local dashboard |
@@ -71,7 +92,7 @@ The UI never accepts API keys through forms — credentials are read from the en
 ## Design
 
 - **Graph-native:** DAGs with conditional edges and bounded cycles, executed async with `asyncio.gather` for parallel fan-out.
-- **BYO-key:** Provider abstraction via [polyrt](https://pypi.org/project/polyrt/). Anthropic and OpenAI in the default install; MLX, Ollama, and others via polyrt extras.
+- **BYO-key:** Provider abstraction via [polyrt](https://pypi.org/project/polyrt/) for Anthropic / Claude (Anthropic SDK) and OpenAI. v0.3 adds **DeepSeek** (`provider: "deepseek"`, optional `base_url`) and **custom** (`provider: "custom"`, required `base_url`) — any OpenAI-compatible endpoint: vLLM, Ollama, Together, LM Studio. API keys are resolved per-backend (`DEEPSEEK_API_KEY` → `OPENAI_API_KEY` fallback, etc.).
 - **Checkpointed:** Every run persists to SQLite (default) or Redis (opt-in via `[redis]` extra).
 - **Tools and skills:** `@tool` decorator auto-derives JSON schemas from type hints. `@skill` for higher-level capabilities. Web search and fetch built in via the `[search]` extra.
 - **UI in the wheel:** No separate Node install for users. The React + Vite frontend is bundled into the published wheel.
@@ -119,12 +140,14 @@ The dashboard's **Memory** tab (browse / search / edit / export / import) is wir
 ## Roadmap
 
 - **v0.2** ✅ — ReasoningBank + parallel MaTTS shipped. See [docs/memory.md](docs/memory.md).
-- **v0.3** — Docker sandbox for `python_exec`, MLX embedder, polyrt-hosted embedder, sequential MaTTS, distributed scheduler.
-- **v0.4** — Alternate vector backends (Redis / Postgres), cloud deploy templates.
+- **v0.3** ✅ — Visual graph builder + JSON `GraphSpec` format + DeepSeek/custom OpenAI-compatible providers + spec-run SSRF guard. See [docs/visual-builder.md](docs/visual-builder.md).
+- **v0.4** — Docker sandbox for `python_exec`, alternate vector backends (Redis / Postgres), distributed scheduler, cloud deploy templates.
 
 ## Security
 
-The `python_exec` tool is unsandboxed. Do not run untrusted graphs. A Docker sandbox is planned for v0.3.
+The `python_exec` tool is unsandboxed — it executes Python in the same process as the runtime. Do not run untrusted graphs that include it. The Builder UI shows a warning when this tool is selected on a node. A Docker sandbox is planned for v0.4.
+
+`POST /api/runs/from-spec` validates browser-supplied graphs before they run: conditions and tool names are whitelist-only (no `eval`), and `base_url` is restricted by an SSRF guard that blocks cloud-metadata endpoints (AWS, GCP, Alibaba, Azure IMDS) and non-http(s) schemes while allowing localhost / RFC1918 for legitimate local LLM endpoints. Operators needing stricter network isolation should run fleet behind a sandbox or egress firewall.
 
 ## License
 
