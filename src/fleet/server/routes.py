@@ -74,13 +74,7 @@ async def _execute_run(run_id: str, graph_module: str, backend: str) -> None:
     try:
         raw = load_graph(graph_module)
         cg: CompiledGraph = raw.compile(backend=backend) if isinstance(raw, Graph) else raw
-        # Wire the run's EventBus so WebSocket subscribers receive events.
-        cg._event_bus = record.event_bus
-
-        state = await cg.run(record.state)
-        record.state = state
-        record.status = "done"
-        await record.event_bus.emit({"type": "run_finished", "run_id": run_id, "status": "done"})
+        await _drive_cg(record, run_id, cg)
     except asyncio.CancelledError:
         record.status = "killed"
         await record.event_bus.emit({"type": "run_finished", "run_id": run_id, "status": "killed"})
@@ -91,6 +85,31 @@ async def _execute_run(run_id: str, graph_module: str, backend: str) -> None:
         await record.event_bus.emit(
             {"type": "run_finished", "run_id": run_id, "status": "error", "error": str(exc)}
         )
+
+
+async def _execute_run_from_spec(run_id: str, cg: CompiledGraph) -> None:
+    """Run a pre-compiled CompiledGraph (built from a spec) end-to-end."""
+    record = _RUNS[run_id]
+    try:
+        await _drive_cg(record, run_id, cg)
+    except asyncio.CancelledError:
+        record.status = "killed"
+        await record.event_bus.emit({"type": "run_finished", "run_id": run_id, "status": "killed"})
+        raise
+    except Exception as exc:
+        record.status = "error"
+        record.error = str(exc)
+        await record.event_bus.emit(
+            {"type": "run_finished", "run_id": run_id, "status": "error", "error": str(exc)}
+        )
+
+
+async def _drive_cg(record: RunRecord, run_id: str, cg: CompiledGraph) -> None:
+    cg._event_bus = record.event_bus
+    state = await cg.run(record.state)
+    record.state = state
+    record.status = "done"
+    await record.event_bus.emit({"type": "run_finished", "run_id": run_id, "status": "done"})
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +144,91 @@ async def create_run(body: RunRequest) -> dict[str, str]:
     _RUNS[run_id] = record
     record.task = asyncio.create_task(_execute_run(run_id, body.graph_module, body.backend))
     return {"run_id": run_id}
+
+
+# ---------------------------------------------------------------------------
+# Builder endpoints — run / export a spec authored in the visual builder
+# ---------------------------------------------------------------------------
+
+class FromSpecRequest(BaseModel):
+    spec: dict[str, Any]
+    goal: str
+    backend: str = "sqlite"
+
+
+class ExportPythonRequest(BaseModel):
+    spec: dict[str, Any]
+
+
+@router.post("/runs/from-spec", status_code=201)
+async def create_run_from_spec(body: FromSpecRequest) -> dict[str, str]:
+    """Validate and run a GraphSpec authored in the visual builder.
+
+    The spec is untrusted input — it is validated through Pydantic and
+    constructed using the same loader the CLI uses. No arbitrary Python is
+    exec'd; conditions are looked up by name in the registry; tool names
+    must already be registered.
+    """
+    from fleet.graphspec.loader import load_graph_spec
+
+    try:
+        cg = load_graph_spec(body.spec, backend=body.backend)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid spec: {exc}") from exc
+
+    run_id = f"run_{uuid.uuid4().hex[:8]}"
+    event_bus = EventBus()
+    state = GraphState(
+        goal=body.goal,
+        metadata={
+            "run_id": run_id,
+            "graph_source": "builder",
+            "graph_name": str(body.spec.get("name", "")),
+        },
+    )
+    record = RunRecord(
+        run_id=run_id,
+        state=state,
+        status="running",
+        event_bus=event_bus,
+    )
+    _RUNS[run_id] = record
+    record.task = asyncio.create_task(_execute_run_from_spec(run_id, cg))
+    return {"run_id": run_id}
+
+
+@router.post("/export-python")
+async def export_python(body: ExportPythonRequest) -> dict[str, str]:
+    """Render a GraphSpec as a runnable Python source file."""
+    from fleet.graphspec import GraphSpec, spec_to_python
+
+    try:
+        spec = GraphSpec.model_validate(body.spec)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid spec: {exc}") from exc
+    return {"source": spec_to_python(spec)}
+
+
+@router.get("/conditions")
+async def list_conditions() -> dict[str, Any]:
+    """Return the names of edge conditions the loader will accept.
+
+    Parametric conditions are listed with a trailing ``:<key>`` placeholder
+    so the UI can render them as an input.
+    """
+    from fleet.graphspec.conditions import _CONDITION_REGISTRY, _PARAMETRIC_REGISTRY
+
+    plain = sorted(_CONDITION_REGISTRY.keys())
+    parametric = [f"{p}:<key>" for p in sorted(_PARAMETRIC_REGISTRY.keys())]
+    return {"conditions": plain, "parametric": parametric}
+
+
+@router.get("/tools")
+async def list_tools() -> dict[str, Any]:
+    """Return the names of registered fleet tools so the UI can multi-select."""
+    from fleet.tools.base import _TOOL_REGISTRY
+
+    return {"tools": sorted(_TOOL_REGISTRY.keys())}
 
 
 @router.get("/runs/{run_id}")
