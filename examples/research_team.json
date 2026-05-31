@@ -1,0 +1,57 @@
+{
+  "version": "0.3",
+  "name": "research_team",
+  "nodes": [
+    {
+      "id": "planner",
+      "type": "agent",
+      "agent": {
+        "name": "planner",
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+        "system": "Break the user's goal into one clear sub-question that a single web researcher can answer. Reply with the sub-question only, no preamble.",
+        "tools": [],
+        "memory_bank": false,
+        "base_url": null,
+        "max_iters": 1
+      },
+      "position": {"x": 80, "y": 80}
+    },
+    {
+      "id": "researcher",
+      "type": "agent",
+      "agent": {
+        "name": "researcher",
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+        "system": "Research the sub-question thoroughly. Use web_search and web_fetch when you need to. Cite sources inline.",
+        "tools": ["web_search", "web_fetch"],
+        "memory_bank": false,
+        "base_url": null,
+        "max_iters": 10
+      },
+      "position": {"x": 320, "y": 80}
+    },
+    {
+      "id": "writer",
+      "type": "agent",
+      "agent": {
+        "name": "writer",
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+        "system": "Turn the researcher's findings into a single well-structured paragraph for a non-expert reader.",
+        "tools": [],
+        "memory_bank": false,
+        "base_url": null,
+        "max_iters": 1
+      },
+      "position": {"x": 560, "y": 80}
+    }
+  ],
+  "edges": [
+    {"src": "planner", "dst": "researcher", "cond": null},
+    {"src": "researcher", "dst": "writer", "cond": null}
+  ],
+  "entry": "planner",
+  "exit": "writer"
+}

@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { useFleetStore } from './store/fleetStore'
 import { useFleetWS } from './hooks/useFleetWS'
 import { GraphCanvas } from './components/GraphCanvas'
+import { GraphBuilder } from './components/GraphBuilder'
 import { AgentPanel } from './components/AgentPanel'
 import { RunControls } from './components/RunControls'
 import { MemoryTab } from './components/MemoryTab'
 
-type Tab = 'runs' | 'memory'
+type Tab = 'runs' | 'builder' | 'memory'
 
 export default function App() {
   const activeRunId = useFleetStore((s) => s.activeRunId)
@@ -17,7 +18,8 @@ export default function App() {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: tab === 'runs' ? '240px 1fr 360px' : '1fr',
+        gridTemplateColumns:
+          tab === 'runs' ? '240px 1fr 360px' : '1fr',
         gridTemplateRows: '48px 1fr',
         height: '100vh',
         width: '100vw',
@@ -60,7 +62,7 @@ export default function App() {
         </span>
 
         <nav style={{ display: 'flex', gap: 4, marginLeft: 24 }}>
-          {(['runs', 'memory'] as Tab[]).map((t) => (
+          {(['runs', 'builder', 'memory'] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -110,6 +112,10 @@ export default function App() {
             <AgentPanel />
           </aside>
         </>
+      ) : tab === 'builder' ? (
+        <main style={{ overflow: 'hidden' }}>
+          <GraphBuilder />
+        </main>
       ) : (
         <main style={{ overflow: 'hidden' }}>
           <MemoryTab />

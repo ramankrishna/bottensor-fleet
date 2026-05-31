@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.3.0 (2026-05-31)
+
+### Added
+- **JSON graph format (`GraphSpec`)** — a declarative, first-class graph format that the rest of fleet treats on par with `.py` graphs. The shapes are Pydantic models in `fleet.graphspec`: `GraphSpec`, `NodeSpec`, `AgentSpec`, `EdgeSpec`, `Position`. Strict validation: unknown providers, unknown tool names, dangling edges, missing entry/exit, duplicate node ids, and unknown condition names all raise clear `ValidationError`s.
+- **`load_graph_spec(spec | dict | json_str | path)`** — turns a JSON spec into a runnable `CompiledGraph` by reusing the existing FleetLLM / Agent / Graph runtime.
+- **`spec_to_python(spec)`** — round-trips a spec back to a hand-readable Python file that mirrors the bundled-examples style. Generated source passes `ruff check`. A regression suite (`tests/test_graphspec_roundtrip.py`) locks in that the loader path and the export-then-run path produce structurally + behaviourally equivalent graphs.
+- **Condition registry** — `fleet.graphspec.register_condition(name, fn)` and `register_parametric_condition(prefix, factory)`. JSON edges can only reference registered names; no `eval`, no arbitrary code. Built-ins: `always`, `max_steps_not_hit`, and the parametric `scratchpad_true:<key>`.
+- **CLI:** `fleet run graph.json --goal "…"` and `fleet export graph.json -o graph.py`.
+- **Visual graph builder** — new **Builder** tab in `fleet ui`. Drag Agent nodes from a palette onto a ReactFlow canvas; click to configure provider / model / system / tools / memory / `base_url` (shown only when the provider needs it) / entry+exit pills; click edges to set a registry condition. Live status badges overlay the same canvas via the existing WebSocket stream. Toolbar: Run, Export .py, Save .json, Open .json.
+- **Server endpoints (untrusted spec path):**
+  - `POST /api/runs/from-spec` — validates a browser-authored spec, compiles, runs in the background; 422 on any validation error.
+  - `POST /api/export-python` — server-side rendering of a spec to Python source.
+  - `GET /api/conditions` — registry contents (plain + parametric).
+  - `GET /api/tools` — registered `@tool` names for the agent-tools multiselect.
+- **New providers** — `deepseek` (OpenAI-compatible, default base URL `https://api.deepseek.com`, `DEEPSEEK_API_KEY` → `OPENAI_API_KEY` fallback) and `custom` (OpenAI-compatible, required `base_url`, `CUSTOM_API_KEY` → `OPENAI_API_KEY` fallback). Covers vLLM, Together, Ollama-as-OpenAI, LM Studio. Implemented fleet-side via the OpenAI SDK + `base_url` override; no polyrt release required.
+- **SSRF guard** — `fleet.graphspec.validate_base_url()` blocks non-http(s) schemes (`file://`, `gopher://`, …) and known cloud-metadata endpoints (AWS `169.254.169.254`, AWS ECS `169.254.170.2`, GCP `metadata.google.internal` / `metadata.goog`, Alibaba `100.100.100.200`, Azure IMDS `169.254.169.253`). Localhost / RFC1918 are deliberately allowed for local vLLM / Ollama. Wired into `AgentSpec` so every code path (CLI, loader, `POST /api/runs/from-spec`) gets the same protection.
+- **`fleet examples`** lists and extracts JSON specs as well as `.py` files. `examples/research_team.json` (planner → researcher → writer with `web_search` / `web_fetch`) ships in the wheel as a reference.
+- **Documentation:** [`docs/visual-builder.md`](docs/visual-builder.md) — using the builder, GraphSpec field reference, trust model.
+
+### Changed
+- `/api/providers` returns the canonical list of supported providers plus per-provider UI hints (`requires_base_url`, `default_base_url`), instead of polling polyrt's entry-point registry.
+- `FleetLLM` routes `openai` / `deepseek` / `custom` through the OpenAI SDK directly (with `base_url` override) for both tool and no-tool calls; Anthropic / Claude unchanged.
+
+### Security
+- Conditions in JSON specs are whitelist-only — there is no `eval` path; an injected name like `__import__('os').system(...)` is rejected at validation with an "unknown condition" error.
+- Tool names in JSON specs are whitelist-only via the `@tool` registry.
+- `base_url` SSRF guard (described above).
+- The Builder UI shows a ⚠ warning under the tools picker when `python_exec` is selected, noting that it runs unsandboxed.
+
+### Compatibility
+- No breaking changes to v0.2 APIs. Existing `.py` graphs, the `fleet run` CLI for them, the Memory tab, and ReasoningBank / MaTTS all behave identically. The JSON format and the Builder tab are purely additive.
+
 ## 0.2.0 (2026-05-27)
 
 ### Added

@@ -36,10 +36,22 @@ def main(
 # ---------------------------------------------------------------------------
 
 def _load_graph_from(path_or_module: str):  # type: ignore[return]
-    """Load a Graph or CompiledGraph from a file path or dotted module name."""
+    """Load a Graph or CompiledGraph from a file path or dotted module name.
+
+    Supports three forms:
+        - ``.json`` file: parsed as a fleet graph spec and compiled.
+        - ``.py`` file or path: imported and required to expose ``graph`` or
+          ``create_graph()``.
+        - dotted module name: same expectations as a ``.py`` file.
+    """
     import importlib
     import importlib.util
     import os
+
+    if path_or_module.endswith(".json"):
+        from fleet.graphspec.loader import load_graph_spec
+
+        return load_graph_spec(path_or_module)
 
     if path_or_module.endswith(".py") or "/" in path_or_module or os.sep in path_or_module:
         spec = importlib.util.spec_from_file_location(
@@ -150,8 +162,13 @@ def run(
     from fleet.core.state import GraphState
 
     async def _run() -> None:
-        raw = _load_graph_from(graph_file)
-        cg = raw.compile(backend=backend) if isinstance(raw, Graph) else raw
+        if graph_file.endswith(".json"):
+            from fleet.graphspec.loader import load_graph_spec
+
+            cg = load_graph_spec(graph_file, backend=backend)
+        else:
+            raw = _load_graph_from(graph_file)
+            cg = raw.compile(backend=backend) if isinstance(raw, Graph) else raw
 
         bus = EventBus()
         cg._event_bus = bus
@@ -211,6 +228,39 @@ def run(
         console.print(f"[green]✓ done[/green]   run_id={run_id}  messages={len(result.messages)}")
 
     asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------------
+# fleet export <graph.json> -o <graph.py>
+# ---------------------------------------------------------------------------
+
+@app.command("export")
+def export_(
+    graph_file: str = typer.Argument(..., help="JSON graph spec to export"),
+    out: Path = typer.Option(..., "--out", "-o", help="Destination .py file"),
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Overwrite the destination if it exists"
+    ),
+) -> None:
+    """Render a JSON graph spec as a runnable Python source file."""
+    import json
+
+    from fleet.graphspec import GraphSpec, spec_to_python
+
+    if not graph_file.endswith(".json"):
+        typer.echo("fleet export only accepts .json graph specs.", err=True)
+        raise typer.Exit(1)
+
+    raw = json.loads(Path(graph_file).read_text(encoding="utf-8"))
+    spec = GraphSpec.model_validate(raw)
+    source = spec_to_python(spec)
+
+    if out.exists() and not force:
+        typer.echo(f"Refusing to overwrite existing file: {out} (use --force)", err=True)
+        raise typer.Exit(1)
+
+    out.write_text(source, encoding="utf-8")
+    console.print(f"[green]Exported[/green] {graph_file} → {out}")
 
 
 # ---------------------------------------------------------------------------
@@ -322,7 +372,8 @@ def examples(
     examples_dir = files("fleet.examples")
     available = sorted(
         p.name for p in examples_dir.iterdir()
-        if p.name.endswith(".py") and p.name != "__init__.py"
+        if (p.name.endswith(".py") or p.name.endswith(".json"))
+        and p.name != "__init__.py"
     )
 
     if name is None:
@@ -332,8 +383,13 @@ def examples(
         typer.echo("\nExtract with: fleet examples <name>")
         return
 
-    if not name.endswith(".py"):
-        name = f"{name}.py"
+    # Accept the bare stem; default to .py for back-compat, fall through to
+    # .json if only that variant exists.
+    if not (name.endswith(".py") or name.endswith(".json")):
+        if f"{name}.py" in available:
+            name = f"{name}.py"
+        elif f"{name}.json" in available:
+            name = f"{name}.json"
 
     if name not in available:
         typer.echo(f"Unknown example: {name}", err=True)
