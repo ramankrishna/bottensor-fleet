@@ -6,9 +6,15 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 SUPPORTED_PROVIDERS: frozenset[str] = frozenset(
-    {"anthropic", "claude", "openai", "ollama", "gemini", "mistral"}
+    {"anthropic", "claude", "openai", "deepseek", "custom", "ollama", "gemini", "mistral"}
 )
-"""LLM providers the loader knows how to construct FleetLLMs for."""
+"""LLM providers the loader knows how to construct FleetLLMs for.
+
+``custom`` covers any OpenAI-compatible endpoint (vLLM, Together, Ollama-as-OpenAI,
+LM Studio, etc.) and requires ``base_url`` to be set. ``deepseek`` is a hosted
+OpenAI-compatible provider; ``base_url`` is optional and defaults to the
+DeepSeek API endpoint.
+"""
 
 
 class Position(BaseModel):
@@ -40,6 +46,11 @@ class AgentSpec(BaseModel):
             raise ValueError(
                 f"Unknown provider '{self.provider}'. "
                 f"Supported providers: {sorted(SUPPORTED_PROVIDERS)}."
+            )
+        if self.provider == "custom" and not self.base_url:
+            raise ValueError(
+                "provider='custom' requires base_url to point at an "
+                "OpenAI-compatible endpoint (e.g. http://localhost:11434/v1)."
             )
         return self
 

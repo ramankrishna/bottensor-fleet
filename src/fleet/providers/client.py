@@ -12,16 +12,42 @@ from fleet.errors import ProviderError
 
 
 _ANTHROPIC_BACKENDS = {"anthropic", "claude"}
-_OPENAI_BACKENDS = {"openai"}
+# Backends that speak the OpenAI Chat Completions wire format. ``custom`` and
+# ``deepseek`` are routed through the OpenAI SDK with a ``base_url`` override.
+_OPENAI_BACKENDS = {"openai", "deepseek", "custom"}
+
+# Per-backend default base URLs (only set for hosted providers that share the
+# OpenAI wire format but live at a fixed endpoint). ``custom`` has no default —
+# users must pass ``base_url``.
+_DEFAULT_BASE_URLS: dict[str, str] = {
+    "deepseek": "https://api.deepseek.com",
+}
+
+# Per-backend env-var names for API keys. Each entry is tried in order; the
+# first non-empty value wins. ``OPENAI_API_KEY`` is included as a courtesy
+# fallback for OpenAI-compatible endpoints that reuse the same key.
+_API_KEY_ENV: dict[str, tuple[str, ...]] = {
+    "anthropic": ("ANTHROPIC_API_KEY",),
+    "claude": ("ANTHROPIC_API_KEY",),
+    "openai": ("OPENAI_API_KEY",),
+    "deepseek": ("DEEPSEEK_API_KEY", "OPENAI_API_KEY"),
+    "custom": ("CUSTOM_API_KEY", "OPENAI_API_KEY"),
+}
 
 
 class FleetLLM:
-    """LLM client that supports tool use across Anthropic and OpenAI.
+    """LLM client that supports tool use across Anthropic- and OpenAI-compatible
+    backends.
 
-    Without tools, requests go through polyrt for unified backend dispatch.
-    With tools, polyrt is bypassed (it forwards unknown kwargs to backend
-    constructors, which reject ``tools``) and the native SDK is called
-    directly so we can pass the tool schemas through.
+    Anthropic / Claude requests use the Anthropic SDK. Everything in
+    ``_OPENAI_BACKENDS`` (openai, deepseek, custom) routes through the OpenAI
+    SDK with a ``base_url`` override so DeepSeek, vLLM, Together, Ollama, LM
+    Studio etc. all work uniformly.
+
+    Without tools, Anthropic / Claude requests fall through polyrt for the
+    unified backend dispatch. OpenAI-compatible backends always use the
+    OpenAI SDK directly so DeepSeek / custom endpoints work even when
+    polyrt does not register them.
     """
 
     def __init__(
@@ -37,6 +63,17 @@ class FleetLLM:
         self.model = model
         self._max_tokens = max_tokens
         self._temperature = temperature
+        # Resolve a default base_url for known hosted backends if the caller
+        # didn't pass one. ``custom`` has no default and must be supplied.
+        if "base_url" not in kwargs or not kwargs.get("base_url"):
+            default = _DEFAULT_BASE_URLS.get(self.backend)
+            if default is not None:
+                kwargs["base_url"] = default
+        if self.backend == "custom" and not kwargs.get("base_url"):
+            raise ProviderError(
+                "backend='custom' requires base_url to point at an "
+                "OpenAI-compatible endpoint (e.g. http://localhost:11434/v1)."
+            )
         self._extra: dict[str, Any] = kwargs
         self._last_usage: polyrt.Usage | None = None
 
@@ -44,19 +81,32 @@ class FleetLLM:
     def usage(self) -> polyrt.Usage | None:
         return self._last_usage
 
+    def _resolve_api_key(self) -> str | None:
+        """Look up the API key from explicit kwarg, then the per-backend env vars."""
+        explicit = self._extra.get("api_key")
+        if explicit:
+            return str(explicit)
+        for env_name in _API_KEY_ENV.get(self.backend, ()):
+            val = os.environ.get(env_name)
+            if val:
+                return val
+        return None
+
     async def complete(
         self,
         messages: list[AgentMessage],
         tools: list[dict[str, Any]] | None = None,
     ) -> AgentMessage:
-        if tools:
-            if self.backend in _ANTHROPIC_BACKENDS:
+        if self.backend in _ANTHROPIC_BACKENDS:
+            if tools:
                 return await self._anthropic_with_tools(messages, tools)
-            if self.backend in _OPENAI_BACKENDS:
-                return await self._openai_with_tools(messages, tools)
+            return await self._polyrt_complete(messages)
+        if self.backend in _OPENAI_BACKENDS:
+            return await self._openai_with_tools(messages, tools or [])
+        if tools:
             raise ProviderError(
                 f"Tool use is not supported for backend '{self.backend}'. "
-                f"Supported backends: anthropic, claude, openai."
+                f"Supported backends: anthropic, claude, openai, deepseek, custom."
             )
         return await self._polyrt_complete(messages)
 
@@ -188,10 +238,12 @@ class FleetLLM:
                 "install bottensor-fleet with the default extras."
             ) from exc
 
-        api_key = self._extra.get("api_key") or os.environ.get("OPENAI_API_KEY")
+        api_key = self._resolve_api_key()
         if not api_key:
+            envs = _API_KEY_ENV.get(self.backend, ("OPENAI_API_KEY",))
             raise ProviderError(
-                "openai backend requires OPENAI_API_KEY env var or api_key argument."
+                f"{self.backend} backend requires one of {list(envs)} env var "
+                f"or api_key argument."
             )
         client_kwargs: dict[str, Any] = {"api_key": api_key}
         if self._extra.get("base_url"):
@@ -199,15 +251,15 @@ class FleetLLM:
         client = AsyncOpenAI(**client_kwargs)
 
         oai_messages = _to_openai_messages(messages)
-        oai_tools = [_tool_to_openai_schema(t) for t in tools]
 
         request_kwargs: dict[str, Any] = {
             "model": self.model,
             "max_tokens": self._max_tokens,
             "temperature": self._temperature,
             "messages": oai_messages,
-            "tools": oai_tools,
         }
+        if tools:
+            request_kwargs["tools"] = [_tool_to_openai_schema(t) for t in tools]
 
         try:
             completion = await _retry_async(

@@ -207,17 +207,20 @@ async def list_graphs() -> dict[str, Any]:
     return {"graphs": files, "directory": graphs_dir}
 
 
-_KNOWN_BACKENDS = ["anthropic", "openai"]
-
-
 @router.get("/providers")
 async def list_providers() -> dict[str, Any]:
-    """Return actually-registered polyrt backend names."""
-    try:
-        from polyrt import registry as _reg
-        _reg._load_entry_points()
-        registered = list(_reg._FACTORIES.keys())
-    except Exception:
-        registered = []
-    backends = registered if registered else _KNOWN_BACKENDS
-    return {"providers": sorted(set(backends))}
+    """Return the canonical set of providers the loader supports, plus per-
+    provider hints the UI uses to render the configuration panel."""
+    from fleet.graphspec.spec import SUPPORTED_PROVIDERS
+    from fleet.providers.client import _DEFAULT_BASE_URLS
+
+    providers = sorted(SUPPORTED_PROVIDERS)
+    details = [
+        {
+            "name": name,
+            "requires_base_url": name == "custom",
+            "default_base_url": _DEFAULT_BASE_URLS.get(name),
+        }
+        for name in providers
+    ]
+    return {"providers": providers, "details": details}
