@@ -794,6 +794,20 @@ function NodePanel({
             })
           )}
         </div>
+        {agent.tools.includes('python_exec') && (
+          <p
+            style={{
+              margin: '6px 0 0 0',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              color: 'var(--accent-gold)',
+              lineHeight: 1.4,
+            }}
+          >
+            ⚠ python_exec runs code in this process, unsandboxed. Only run
+            graphs you trust.
+          </p>
+        )}
       </Field>
 
       <Field label="memory bank">

@@ -18,6 +18,7 @@ from fleet.graphspec.spec import (
     NodeSpec,
     Position,
     SUPPORTED_PROVIDERS,
+    validate_base_url,
 )
 from fleet.graphspec.conditions import (
     get_condition,
@@ -33,6 +34,7 @@ __all__ = [
     "NodeSpec",
     "Position",
     "SUPPORTED_PROVIDERS",
+    "validate_base_url",
     "get_condition",
     "register_condition",
     "load_graph_spec",
