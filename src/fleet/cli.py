@@ -36,10 +36,22 @@ def main(
 # ---------------------------------------------------------------------------
 
 def _load_graph_from(path_or_module: str):  # type: ignore[return]
-    """Load a Graph or CompiledGraph from a file path or dotted module name."""
+    """Load a Graph or CompiledGraph from a file path or dotted module name.
+
+    Supports three forms:
+        - ``.json`` file: parsed as a fleet graph spec and compiled.
+        - ``.py`` file or path: imported and required to expose ``graph`` or
+          ``create_graph()``.
+        - dotted module name: same expectations as a ``.py`` file.
+    """
     import importlib
     import importlib.util
     import os
+
+    if path_or_module.endswith(".json"):
+        from fleet.graphspec.loader import load_graph_spec
+
+        return load_graph_spec(path_or_module)
 
     if path_or_module.endswith(".py") or "/" in path_or_module or os.sep in path_or_module:
         spec = importlib.util.spec_from_file_location(
@@ -150,8 +162,13 @@ def run(
     from fleet.core.state import GraphState
 
     async def _run() -> None:
-        raw = _load_graph_from(graph_file)
-        cg = raw.compile(backend=backend) if isinstance(raw, Graph) else raw
+        if graph_file.endswith(".json"):
+            from fleet.graphspec.loader import load_graph_spec
+
+            cg = load_graph_spec(graph_file, backend=backend)
+        else:
+            raw = _load_graph_from(graph_file)
+            cg = raw.compile(backend=backend) if isinstance(raw, Graph) else raw
 
         bus = EventBus()
         cg._event_bus = bus
